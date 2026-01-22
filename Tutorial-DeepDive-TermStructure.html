@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deep Dive: Term Structure of Interest Rates</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useCallback, useEffect, useRef } = React;
+
+    // LucideIcon helper component
+    const LucideIcon = ({ name, size = 24, color = 'currentColor', ...props }) => {
+      const iconRef = useRef(null);
+
+      useEffect(() => {
+        if (iconRef.current && lucide && lucide[name]) {
+          iconRef.current.innerHTML = '';
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          svg.setAttribute('width', size);
+          svg.setAttribute('height', size);
+          svg.setAttribute('viewBox', '0 0 24 24');
+          svg.setAttribute('fill', 'none');
+          svg.setAttribute('stroke', color);
+          svg.setAttribute('stroke-width', '2');
+          svg.setAttribute('stroke-linecap', 'round');
+          svg.setAttribute('stroke-linejoin', 'round');
+
+          const iconData = lucide[name];
+          if (iconData && iconData[2]) {
+            iconData[2].forEach(([tag, attrs]) => {
+              const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+              Object.entries(attrs).forEach(([key, value]) => {
+                el.setAttribute(key, value);
+              });
+              svg.appendChild(el);
+            });
+          }
+          iconRef.current.appendChild(svg);
+        }
+      }, [name, size, color]);
+
+      return <span ref={iconRef} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', ...props.style }} />;
+    };
+
+    // ============================================================================
+    // CONSTANTS
+    // ============================================================================
+
+    const CONSTANTS = {
+      FACE_VALUE: 100,
+      COUPON_RATE: 0.06,
+      COUPON_PAYMENT: 6.00,
+      PERIODS: 3,
+      FLAT_RATE: 0.06,
+      PV_FLAT: 100.00,
+      SPOT_RATE_1: 0.05,
+      SPOT_RATE_2: 0.06,
+      SPOT_RATE_3: 0.07,
+      PV_CF1_SLOPED: 5.71,
+      PV_CF2_SLOPED: 5.34,
+      PV_CF3_SLOPED: 86.53,
+      PV_SLOPED: 97.58,
+      TOLERANCE: 0.02,
+      TOLERANCE_PV: 0.15,
+      ESTIMATED_CORE_TIME: 18,
+      ESTIMATED_FULL_TIME: 28,
+    };
+
+    // ============================================================================
+    // COLORS (Yale Blue Theme)
+    // ============================================================================
+
+    const COLORS = {
+      primary: '#00356b',
+      primaryLight: '#1a4a7a',
+      primaryDark: '#002548',
+      background: '#f8fafc',
+      surface: '#ffffff',
+      surfaceAlt: '#f1f5f9',
+      border: '#e2e8f0',
+      borderDark: '#cbd5e1',
+      textPrimary: '#1e293b',
+      textSecondary: '#64748b',
+      textMuted: '#94a3b8',
+      accent: '#0369a1',
+      accentLight: '#e0f2fe',
+      gold: '#ca8a04',
+      goldLight: '#fef9c3',
+      goldBorder: '#eab308',
+      success: '#16a34a',
+      successBg: '#f0fdf4',
+      successBorder: '#86efac',
+      warning: '#d97706',
+      warningBg: '#fffbeb',
+      warningBorder: '#fcd34d',
+      error: '#dc2626',
+      errorBg: '#fef2f2',
+      rabbitHole: '#7c3aed',
+      rabbitHoleLight: '#ede9fe',
+      rabbitHoleBorder: '#a78bfa',
+    };
+
+    // ============================================================================
+    // TUTORIAL STRUCTURE
+    // ============================================================================
+
+    const PARTS = [
+      { id: 'theAssumption', title: 'The Assumption We\'ve Been Making', steps: 2 },
+      { id: 'yieldCurve', title: 'The Yield Curve', steps: 3 },
+      { id: 'curveShapes', title: 'Yield Curve Shapes', steps: 3 },
+      { id: 'whySlope', title: 'Why Does the Curve Slope?', steps: 2 },
+      { id: 'invertedCurve', title: 'The Inverted Yield Curve', steps: 2 },
+      { id: 'bondPricing', title: 'Implications for Bond Pricing', steps: 3 },
+      { id: 'complete', title: 'Complete', steps: 1 },
+    ];
+
+    // ============================================================================
+    // RABBIT HOLES DATA
+    // ============================================================================
+
+    const RABBIT_HOLES = {
+      inversion2022: {
+        id: 'inversion2022',
+        title: 'The 2022-2023 Yield Curve Inversion',
+        partId: 'invertedCurve',
+        content: `In 2022, the yield curve inverted dramatically. The 2-year Treasury rate exceeded the 10-year rate by the widest margin in over 40 years.
+
+What happened? The Federal Reserve was aggressively raising short-term rates to fight inflation. But the market expected these high rates wouldn't last — that eventually, the Fed would need to cut rates, possibly because the economy would slow.
+
+The inversion persisted through much of 2023. Many analysts predicted a recession based on the historical pattern. By late 2024, the curve had largely normalized as the Fed began cutting rates.
+
+Whether those recession predictions proved accurate is a reminder that the yield curve reflects expectations, not certainties. Markets can be wrong. The yield curve is a useful signal, but it's not a crystal ball.`
+      },
+      spotVsYTM: {
+        id: 'spotVsYTM',
+        title: 'Spot Rates vs. Yield to Maturity',
+        partId: 'bondPricing',
+        content: `We glossed over something: the rates on a yield curve are typically "spot rates" — the rate for a single payment at that specific maturity. But when you hear a bond's "yield," that's usually the yield to maturity (YTM) — a single rate that, if used to discount all the bond's cash flows, gives you the bond's current price.
+
+YTM is a kind of weighted average of the spot rates relevant to that bond's cash flows. It's convenient because it's one number, but it hides information. Two bonds with the same YTM can have different sensitivities to rate changes if their cash flows are distributed differently over time.
+
+For most purposes in this course, we'll use a single discount rate. But knowing that the term structure exists helps you understand why bond pricing can get complicated — and why bond traders spend so much time staring at yield curves.
+
+The formal distinction:
+• Spot rate: The rate for a zero-coupon bond maturing at a specific time
+• YTM: The internal rate of return that equates a bond's price to its cash flows
+
+When the yield curve is flat, spot rates and YTM are the same. When it's not flat, they differ.`
+      },
+      whoDecides: {
+        id: 'whoDecides',
+        title: 'Who Decides the Yield Curve?',
+        partId: 'whySlope',
+        content: `Nobody "sets" the yield curve. It emerges from millions of transactions — people borrowing and lending at various maturities, buying and selling bonds, making bets on where rates will go.
+
+The Federal Reserve influences short-term rates directly through the federal funds rate. But longer-term rates are determined by the market: by pension funds buying 30-year bonds for their liabilities, by hedge funds making bets on inflation, by foreign governments parking reserves in U.S. Treasuries.
+
+This is why the yield curve can invert even when the Fed is raising rates — the Fed controls the short end, but the market determines the long end based on expectations.
+
+The yield curve is perhaps the most-watched indicator in finance. When it moves, traders scramble to understand why. When it inverts, headlines warn of recession. It's a collective forecast, updated in real time, built from the actions of countless market participants.
+
+In a sense, the yield curve is the market's best guess about the future path of interest rates — embedded in the prices people are willing to pay today.`
+      },
+    };
+
+    // ============================================================================
+    // GLOSSARY DATA
+    // ============================================================================
+
+    const GLOSSARY = {
+      termStructure: {
+        term: 'Term Structure of Interest Rates',
+        definition: 'The relationship between interest rates and time to maturity. Shows that borrowing for 1 year typically has a different rate than borrowing for 10 years.',
+      },
+      yieldCurve: {
+        term: 'Yield Curve',
+        definition: 'A graph showing interest rates (y-axis) across different maturities (x-axis) at a specific point in time. A snapshot of the term structure.',
+      },
+      spotRate: {
+        term: 'Spot Rate',
+        definition: 'The interest rate for a single payment at a specific future date. The "1-year spot rate" is the rate for money received exactly 1 year from now.',
+      },
+      yieldToMaturity: {
+        term: 'Yield to Maturity (YTM)',
+        definition: 'The single discount rate that equates a bond\'s price to the present value of its cash flows. An approximation when the yield curve isn\'t flat.',
+      },
+      normalYieldCurve: {
+        term: 'Normal Yield Curve',
+        definition: 'An upward-sloping curve where longer maturities have higher rates. The most common shape, reflecting compensation for lending money longer.',
+      },
+      invertedYieldCurve: {
+        term: 'Inverted Yield Curve',
+        definition: 'A downward-sloping curve where shorter maturities have higher rates than longer ones. Historically associated with upcoming recessions.',
+      },
+      liquidityPremium: {
+        term: 'Liquidity Premium',
+        definition: 'Extra return demanded by lenders for committing funds for longer periods. One explanation for why yield curves typically slope upward.',
+      },
+    };
+
+    // ============================================================================
+    // SOUND SYSTEM
+    // ============================================================================
+
+    const playSound = (type) => {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        switch (type) {
+          case 'success':
+            oscillator.frequency.setValueAtTime(523.25, ctx.currentTime);
+            oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+            oscillator.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2);
+            gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + 0.4);
+            break;
+          case 'softNope':
+            oscillator.frequency.setValueAtTime(783.99, ctx.currentTime);
+            oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15);
+            gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + 0.3);
+            break;
+          case 'click':
+            oscillator.frequency.setValueAtTime(600, ctx.currentTime);
+            gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + 0.08);
+            break;
+          case 'rabbitHole':
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+            oscillator.frequency.setValueAtTime(932.33, ctx.currentTime + 0.05);
+            oscillator.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+            gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + 0.25);
+            break;
+          case 'insight':
+            oscillator.type = 'sine';
+            [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+              oscillator.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.12);
+            });
+            gainNode.gain.setValueAtTime(0.25, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + 0.6);
+            break;
+          default:
+            break;
+        }
+        setTimeout(() => ctx.close(), 700);
+      } catch (e) { /* Fail silently */ }
+    };
+
+    // ============================================================================
+    // UTILITY FUNCTIONS
+    // ============================================================================
+
+    const formatCurrency = (value) => new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }).format(value);
+
+    const formatPercent = (value, decimals = 0) => `${(value * 100).toFixed(decimals)}%`;
+
+    const parseUserInput = (input) => parseFloat(input.replace(/[$,%\s]/g, ''));
+
+    const checkAnswer = (userValue, correctValue, tolerance) => Math.abs(userValue - correctValue) <= tolerance;
+
+    const calculateProgress = (currentPartIndex, currentStep) => {
+      if (currentPartIndex === PARTS.length - 1) return 100;
+      const totalSteps = PARTS.reduce((sum, p) => sum + p.steps, 0);
+      const completedSteps = PARTS.slice(0, currentPartIndex).reduce((sum, p) => sum + p.steps, 0) + currentStep;
+      return Math.round((completedSteps / totalSteps) * 100);
+    };
+
+    // ============================================================================
+    // UI COMPONENTS
+    // ============================================================================
+
+    const Header = ({ currentPartIndex, currentStep, exploredRabbitHoles, totalRabbitHoles, onGlossaryClick, onRestartClick, onHeaderClick, soundEnabled, onSoundToggle }) => {
+      const progress = calculateProgress(currentPartIndex, currentStep);
+      const currentPart = PARTS[currentPartIndex];
+
+      return (
+        <header style={{ background: COLORS.primary, color: 'white', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 100 }}>
+          <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h1 onClick={onHeaderClick} style={{ fontSize: '18px', fontWeight: '600', margin: 0, cursor: 'default', userSelect: 'none' }}>
+                Term Structure of Interest Rates
+              </h1>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button onClick={onSoundToggle} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center' }} title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}>
+                  {soundEnabled ? <LucideIcon name="Volume2" size={18} /> : <LucideIcon name="VolumeX" size={18} />}
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: COLORS.rabbitHoleLight, color: COLORS.rabbitHole, padding: '4px 10px', borderRadius: '12px', fontSize: '13px', fontWeight: '500' }}>
+                  <LucideIcon name="Rabbit" size={14} />{exploredRabbitHoles.length}/{totalRabbitHoles}
+                </div>
+                <button onClick={onGlossaryClick} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
+                  <LucideIcon name="BookOpen" size={16} />Glossary
+                </button>
+                <button onClick={onRestartClick} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center' }} title="Restart tutorial">
+                  <LucideIcon name="RotateCcw" size={18} />
+                </button>
+              </div>
+            </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px', opacity: 0.9 }}>
+                <span>Part {currentPartIndex + 1}: {currentPart.title}</span>
+                <span>{progress}% complete</span>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
+                <div style={{ background: COLORS.goldBorder, height: '100%', width: `${progress}%`, transition: 'width 0.3s ease', borderRadius: '4px' }} />
+              </div>
+            </div>
+          </div>
+        </header>
+      );
+    };
+
+    const NavButtons = ({ onBack, onContinue, canGoBack, canContinue, continueLabel = 'Continue', soundEnabled }) => {
+      const handleContinue = () => { if (soundEnabled) playSound('click'); onContinue(); };
+      const handleBack = () => { if (soundEnabled) playSound('click'); onBack(); };
+
+      return (
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '32px', paddingTop: '24px', borderTop: `1px solid ${COLORS.border}` }}>
+          <button onClick={handleBack} disabled={!canGoBack} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 20px', border: `1px solid ${COLORS.border}`, borderRadius: '8px', background: 'white', color: canGoBack ? COLORS.textPrimary : COLORS.textMuted, cursor: canGoBack ? 'pointer' : 'not-allowed', fontSize: '15px', opacity: canGoBack ? 1 : 0.5 }}>
+            <LucideIcon name="ChevronLeft" size={18} />Back
+          </button>
+          <button onClick={handleContinue} disabled={!canContinue} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 24px', border: 'none', borderRadius: '8px', background: canContinue ? COLORS.primary : COLORS.textMuted, color: 'white', cursor: canContinue ? 'pointer' : 'not-allowed', fontSize: '15px', fontWeight: '500' }}>
+            {continueLabel}<LucideIcon name="ChevronRight" size={18} />
+          </button>
+        </div>
+      );
+    };
+
+    const CalculationBox = ({ prompt, correctAnswer, hint1, hint2, onCorrect, soundEnabled, tolerance = CONSTANTS.TOLERANCE, prefix = '$' }) => {
+      const [input, setInput] = useState('');
+      const [attempts, setAttempts] = useState(0);
+      const [isCorrect, setIsCorrect] = useState(false);
+      const [showHint, setShowHint] = useState(null);
+
+      const handleCheck = () => {
+        const userValue = parseUserInput(input);
+        if (isNaN(userValue)) { setShowHint('Please enter a valid number'); return; }
+        if (checkAnswer(userValue, correctAnswer, tolerance)) {
+          setIsCorrect(true);
+          if (soundEnabled) playSound('success');
+          onCorrect?.();
+        } else {
+          const newAttempts = attempts + 1;
+          setAttempts(newAttempts);
+          if (soundEnabled) playSound('softNope');
+          if (newAttempts >= 3) {
+            const displayAnswer = prefix === '%' ? `${correctAnswer}%` : formatCurrency(correctAnswer);
+            setShowHint(`The answer is ${displayAnswer}`);
+            setIsCorrect(true);
+            onCorrect?.();
+          } else if (newAttempts === 2 && hint2) { setShowHint(hint2); }
+          else if (hint1) { setShowHint(hint1); }
+        }
+      };
+
+      return (
+        <div style={{ background: COLORS.surfaceAlt, border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '20px', marginTop: '16px' }}>
+          <p style={{ margin: '0 0 16px 0', fontSize: '15px', color: COLORS.textPrimary }}>{prompt}</p>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: COLORS.textMuted }}>{prefix}</span>
+              <input type="text" value={input} onChange={(e) => setInput(e.target.value)} disabled={isCorrect} placeholder="0.00" style={{ width: '100%', padding: '12px 12px 12px 28px', border: `2px solid ${isCorrect ? COLORS.successBorder : COLORS.border}`, borderRadius: '8px', fontSize: '16px', fontFamily: 'monospace', background: isCorrect ? COLORS.successBg : 'white', boxSizing: 'border-box' }} onKeyDown={(e) => e.key === 'Enter' && !isCorrect && handleCheck()} />
+            </div>
+            <button onClick={handleCheck} disabled={isCorrect || !input} style={{ padding: '12px 20px', border: 'none', borderRadius: '8px', background: isCorrect ? COLORS.success : COLORS.primary, color: 'white', fontSize: '15px', fontWeight: '500', cursor: isCorrect || !input ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {isCorrect ? <LucideIcon name="Check" size={18} /> : 'Check'}
+            </button>
+          </div>
+          {showHint && <p style={{ marginTop: '12px', padding: '10px 12px', background: isCorrect && attempts >= 3 ? COLORS.warningBg : COLORS.accentLight, borderRadius: '6px', fontSize: '14px', color: isCorrect && attempts >= 3 ? COLORS.warning : COLORS.accent }}>{showHint}</p>}
+        </div>
+      );
+    };
+
+    const InsightBox = ({ children, icon }) => (
+      <div style={{ background: COLORS.goldLight, border: `2px solid ${COLORS.goldBorder}`, borderRadius: '12px', padding: '20px', marginTop: '20px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+          {icon || <LucideIcon name="Check" size={24} color={COLORS.gold} style={{ flexShrink: 0, marginTop: '2px' }} />}
+          <div style={{ fontSize: '16px', lineHeight: '1.6', color: COLORS.textPrimary }}>{children}</div>
+        </div>
+      </div>
+    );
+
+    const RabbitHoleButton = ({ id, children, onClick, explored }) => (
+      <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 18px', border: `2px dashed ${COLORS.rabbitHoleBorder}`, borderRadius: '12px', background: explored ? COLORS.rabbitHoleLight : 'white', color: COLORS.rabbitHole, fontSize: '15px', cursor: 'pointer', width: '100%', textAlign: 'left', marginTop: '16px' }}>
+        <LucideIcon name="Rabbit" size={20} /><span style={{ flex: 1 }}>{children}</span>{explored && <LucideIcon name="Check" size={18} />}
+      </button>
+    );
+
+    const RabbitHoleModal = ({ rabbitHole, onClose }) => (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+        <div style={{ background: 'white', borderRadius: '16px', maxWidth: '600px', maxHeight: '80vh', overflow: 'auto', padding: '32px', position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+            <div style={{ background: COLORS.rabbitHoleLight, borderRadius: '50%', padding: '8px' }}><LucideIcon name="Rabbit" size={24} color={COLORS.rabbitHole} /></div>
+            <h3 style={{ margin: 0, color: COLORS.rabbitHole, fontSize: '20px' }}>{rabbitHole.title}</h3>
+          </div>
+          <div style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary, whiteSpace: 'pre-wrap' }}>{rabbitHole.content}</div>
+          <button onClick={onClose} style={{ marginTop: '24px', padding: '12px 24px', border: 'none', borderRadius: '8px', background: COLORS.rabbitHole, color: 'white', fontSize: '15px', fontWeight: '500', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <LucideIcon name="ChevronLeft" size={18} />Back to Tutorial
+          </button>
+        </div>
+      </div>
+    );
+
+    const GlossaryModal = ({ onClose }) => (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+        <div style={{ background: 'white', borderRadius: '16px', maxWidth: '600px', maxHeight: '80vh', overflow: 'auto', padding: '32px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h2 style={{ margin: 0, color: COLORS.primary }}>Glossary</h2>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}><LucideIcon name="X" size={24} color={COLORS.textSecondary} /></button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {Object.values(GLOSSARY).map((item, idx) => (
+              <div key={idx} style={{ paddingBottom: '16px', borderBottom: idx < Object.values(GLOSSARY).length - 1 ? `1px solid ${COLORS.border}` : 'none' }}>
+                <h4 style={{ margin: '0 0 8px 0', color: COLORS.primary, fontSize: '16px' }}>{item.term}</h4>
+                <p style={{ margin: 0, color: COLORS.textSecondary, fontSize: '15px', lineHeight: '1.6' }}>{item.definition}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+
+    const RestartConfirmModal = ({ onConfirm, onCancel }) => (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+        <div style={{ background: 'white', borderRadius: '16px', maxWidth: '400px', padding: '32px', textAlign: 'center' }}>
+          <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: COLORS.warningBg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+            <LucideIcon name="AlertTriangle" size={30} color={COLORS.warning} />
+          </div>
+          <h3 style={{ margin: '0 0 12px 0', color: COLORS.textPrimary }}>Restart Tutorial?</h3>
+          <p style={{ margin: '0 0 24px 0', color: COLORS.textSecondary }}>This will reset all your progress and start from the beginning.</p>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+            <button onClick={onCancel} style={{ padding: '10px 20px', border: `1px solid ${COLORS.border}`, borderRadius: '8px', background: 'white', color: COLORS.textPrimary, fontSize: '15px', cursor: 'pointer' }}>Cancel</button>
+            <button onClick={onConfirm} style={{ padding: '10px 20px', border: 'none', borderRadius: '8px', background: COLORS.warning, color: 'white', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>Restart</button>
+          </div>
+        </div>
+      </div>
+    );
+
+    const DevModePanel = ({ onJumpToPart, currentPartIndex, onClose }) => (
+      <div style={{ position: 'fixed', bottom: '20px', right: '20px', background: 'white', border: `2px solid ${COLORS.primary}`, borderRadius: '12px', padding: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 500, minWidth: '200px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <span style={{ fontWeight: '600', color: COLORS.primary, fontSize: '14px' }}>Dev Mode</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}><LucideIcon name="X" size={16} color={COLORS.textSecondary} /></button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {PARTS.map((part, idx) => (
+            <button key={part.id} onClick={() => onJumpToPart(idx)} style={{ padding: '8px 12px', border: 'none', borderRadius: '6px', background: idx === currentPartIndex ? COLORS.primary : COLORS.surfaceAlt, color: idx === currentPartIndex ? 'white' : COLORS.textPrimary, fontSize: '13px', cursor: 'pointer', textAlign: 'left' }}>
+              {idx + 1}. {part.title}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+
+    // ============================================================================
+    // YIELD CURVE VISUALIZATION
+    // ============================================================================
+
+    const YieldCurveVisual = ({ shape = 'normal' }) => {
+      const curves = {
+        normal: [{ maturity: '3mo', rate: 3.0 }, { maturity: '6mo', rate: 3.3 }, { maturity: '1yr', rate: 3.8 }, { maturity: '2yr', rate: 4.2 }, { maturity: '5yr', rate: 4.6 }, { maturity: '10yr', rate: 5.0 }, { maturity: '30yr', rate: 5.3 }],
+        flat: [{ maturity: '3mo', rate: 4.5 }, { maturity: '6mo', rate: 4.5 }, { maturity: '1yr', rate: 4.5 }, { maturity: '2yr', rate: 4.5 }, { maturity: '5yr', rate: 4.5 }, { maturity: '10yr', rate: 4.5 }, { maturity: '30yr', rate: 4.5 }],
+        inverted: [{ maturity: '3mo', rate: 5.3 }, { maturity: '6mo', rate: 5.1 }, { maturity: '1yr', rate: 4.8 }, { maturity: '2yr', rate: 4.4 }, { maturity: '5yr', rate: 4.0 }, { maturity: '10yr', rate: 3.7 }, { maturity: '30yr', rate: 3.5 }],
+      };
+
+      const data = curves[shape];
+      const maxRate = 6, minRate = 2, rateRange = maxRate - minRate;
+      const width = 500, height = 200;
+      const padding = { top: 20, right: 30, bottom: 40, left: 50 };
+      const chartWidth = width - padding.left - padding.right;
+      const chartHeight = height - padding.top - padding.bottom;
+
+      const points = data.map((d, i) => ({
+        x: padding.left + (i / (data.length - 1)) * chartWidth,
+        y: padding.top + (1 - (d.rate - minRate) / rateRange) * chartHeight,
+        ...d
+      }));
+
+      const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+      const curveColor = shape === 'normal' ? COLORS.success : shape === 'inverted' ? COLORS.error : COLORS.warning;
+
+      return (
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px' }}>
+          <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', maxWidth: '500px', display: 'block', margin: '0 auto' }}>
+            <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} stroke={COLORS.borderDark} strokeWidth="2" />
+            <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} stroke={COLORS.borderDark} strokeWidth="2" />
+            {[2, 3, 4, 5, 6].map(rate => {
+              const y = padding.top + (1 - (rate - minRate) / rateRange) * chartHeight;
+              return (<g key={rate}><line x1={padding.left - 5} y1={y} x2={padding.left} y2={y} stroke={COLORS.borderDark} strokeWidth="1" /><text x={padding.left - 10} y={y + 4} textAnchor="end" fontSize="11" fill={COLORS.textSecondary}>{rate}%</text><line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke={COLORS.border} strokeWidth="1" strokeDasharray="4,4" opacity="0.5" /></g>);
+            })}
+            {points.map((p, i) => <text key={i} x={p.x} y={height - padding.bottom + 20} textAnchor="middle" fontSize="10" fill={COLORS.textSecondary}>{p.maturity}</text>)}
+            <path d={pathD} fill="none" stroke={curveColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+            {points.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="5" fill={curveColor} />)}
+            <text x={padding.left - 35} y={height / 2} textAnchor="middle" fontSize="12" fill={COLORS.textSecondary} transform={`rotate(-90, ${padding.left - 35}, ${height / 2})`}>Interest Rate</text>
+            <text x={width / 2} y={height - 5} textAnchor="middle" fontSize="12" fill={COLORS.textSecondary}>Time to Maturity</text>
+          </svg>
+        </div>
+      );
+    };
+
+    const FlatVsSlopedComparison = () => (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '16px', marginBottom: '16px' }}>
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', border: `2px solid ${COLORS.border}` }}>
+          <div style={{ fontWeight: '600', color: COLORS.textPrimary, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}><LucideIcon name="Minus" size={20} color={COLORS.warning} />Flat Curve (6% everywhere)</div>
+          <div style={{ fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.8', color: COLORS.textSecondary }}>
+            <div>$6 / 1.06 = $5.66</div><div>$6 / 1.06^2 = $5.34</div><div>$106 / 1.06^3 = $89.00</div>
+          </div>
+          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${COLORS.border}`, fontFamily: 'monospace', fontSize: '18px', fontWeight: '600', color: COLORS.primary }}>PV = {formatCurrency(CONSTANTS.PV_FLAT)}</div>
+        </div>
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', border: `2px solid ${COLORS.success}` }}>
+          <div style={{ fontWeight: '600', color: COLORS.textPrimary, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}><LucideIcon name="TrendingUp" size={20} color={COLORS.success} />Upward Sloping (5%, 6%, 7%)</div>
+          <div style={{ fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.8', color: COLORS.textSecondary }}>
+            <div>$6 / 1.05 = $5.71</div><div>$6 / 1.06^2 = $5.34</div><div>$106 / 1.07^3 = $86.53</div>
+          </div>
+          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${COLORS.border}`, fontFamily: 'monospace', fontSize: '18px', fontWeight: '600', color: COLORS.gold }}>PV = {formatCurrency(CONSTANTS.PV_SLOPED)}</div>
+        </div>
+      </div>
+    );
+
+    const SpotRateDiscountingVisual = () => {
+      const cashFlows = [{ time: 1, amount: 6, rate: 0.05, pv: 5.71 }, { time: 2, amount: 6, rate: 0.06, pv: 5.34 }, { time: 3, amount: 106, rate: 0.07, pv: 86.53 }];
+
+      return (
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '24px', marginTop: '16px', marginBottom: '16px', overflowX: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', position: 'relative', minHeight: '160px', paddingBottom: '40px', paddingTop: '20px' }}>
+            <div style={{ position: 'absolute', bottom: '20px', left: '40px', right: '40px', height: '3px', background: COLORS.borderDark }} />
+            <div style={{ position: 'absolute', left: '40px', bottom: '0px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: COLORS.gold, position: 'relative', bottom: '15px' }} />
+              <span style={{ fontSize: '12px', color: COLORS.textSecondary }}>Today</span>
+            </div>
+            {cashFlows.map((cf, idx) => {
+              const leftPercent = 20 + (idx + 1) * 20;
+              return (
+                <div key={idx} style={{ position: 'absolute', left: `${leftPercent}%`, bottom: '0px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ background: cf.time === 3 ? COLORS.gold : COLORS.primary, color: 'white', borderRadius: '8px', padding: '8px 10px', marginBottom: '8px', fontFamily: 'monospace', fontSize: '14px', fontWeight: '600' }}>{formatCurrency(cf.amount)}</div>
+                  <div style={{ width: '2px', height: '16px', background: cf.time === 3 ? COLORS.gold : COLORS.primary }} />
+                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: cf.time === 3 ? COLORS.gold : COLORS.primary }} />
+                  <span style={{ marginTop: '8px', fontSize: '12px', color: COLORS.textSecondary }}>Year {cf.time}</span>
+                  <span style={{ fontSize: '11px', color: COLORS.accent, fontWeight: '500' }}>{formatPercent(cf.rate)} rate</span>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${COLORS.border}`, textAlign: 'center', fontSize: '14px', color: COLORS.textSecondary }}>
+            Each cash flow is discounted at the rate for <em>its</em> maturity
+          </div>
+        </div>
+      );
+    };
+
+    // ============================================================================
+    // TUTORIAL PARTS
+    // ============================================================================
+
+    const Part0TheAssumption = ({ step }) => {
+      if (step === 0) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>One Rate to Rule Them All?</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>So far in these tutorials, we've been using <strong>one interest rate</strong> — like 6% per period — for all our calculations.</p>
+            <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px' }}>
+              <p style={{ margin: 0, fontFamily: 'monospace', fontSize: '15px', textAlign: 'center' }}>PV = CF1/(1.06)^1 + CF2/(1.06)^2 + CF3/(1.06)^3 + ...</p>
+              <p style={{ margin: '12px 0 0 0', textAlign: 'center', color: COLORS.textSecondary, fontSize: '14px' }}>Same rate for every period</p>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>This made our calculations clean and simple. But here's a question worth asking:</p>
+            <div style={{ background: COLORS.accentLight, borderRadius: '12px', padding: '20px', marginTop: '16px', textAlign: 'center' }}>
+              <p style={{ margin: 0, fontSize: '18px', fontWeight: '500', color: COLORS.primary }}>Is it realistic to assume the same rate applies whether you're borrowing for 1 year or 10 years?</p>
+            </div>
+          </>
+        );
+      }
+      if (step === 1) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>Different Maturities, Different Rates</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>In the real world, the rate you pay to borrow money for <strong>1 year</strong> is often different from the rate to borrow for <strong>10 years</strong>.</p>
+            <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px' }}>
+              <div style={{ marginBottom: '16px' }}><strong style={{ color: COLORS.primary }}>Example: U.S. Treasury Rates</strong></div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', textAlign: 'center' }}>
+                {[{ maturity: '1 Year', rate: '4.2%' }, { maturity: '5 Year', rate: '4.5%' }, { maturity: '10 Year', rate: '4.8%' }, { maturity: '30 Year', rate: '5.1%' }].map((item, idx) => (
+                  <div key={idx} style={{ background: 'white', borderRadius: '8px', padding: '12px' }}>
+                    <div style={{ fontSize: '12px', color: COLORS.textSecondary, marginBottom: '4px' }}>{item.maturity}</div>
+                    <div style={{ fontSize: '18px', fontWeight: '600', color: COLORS.primary }}>{item.rate}</div>
+                  </div>
+                ))}
+              </div>
+              <p style={{ margin: '12px 0 0 0', fontSize: '13px', color: COLORS.textMuted, textAlign: 'center' }}>(Illustrative rates - actual rates change daily)</p>
+            </div>
+            <InsightBox><strong>Key Insight:</strong> "The interest rate" isn't just one number - it depends on how long you're borrowing. There's a whole <em>schedule</em> of rates.</InsightBox>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>This relationship between interest rates and time to maturity is called the <strong>term structure of interest rates</strong>.</p>
+          </>
+        );
+      }
+      return null;
+    };
+
+    const Part1YieldCurve = ({ step }) => {
+      if (step === 0) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>Visualizing the Term Structure</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>We can plot these rates on a graph:</p>
+            <ul style={{ fontSize: '16px', lineHeight: '1.8', color: COLORS.textPrimary, paddingLeft: '24px' }}>
+              <li><strong>X-axis:</strong> Time to maturity (how long until the loan is repaid)</li>
+              <li><strong>Y-axis:</strong> Interest rate</li>
+            </ul>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>The resulting curve is called the <strong>yield curve</strong>.</p>
+            <YieldCurveVisual shape="normal" />
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>This curve shows interest rates at a <strong>single point in time</strong> - a snapshot of what it costs to borrow for different periods.</p>
+          </>
+        );
+      }
+      if (step === 1) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>The Yield Curve Is a Snapshot</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>The yield curve isn't fixed - it changes constantly as market conditions change. What you see today might look different tomorrow.</p>
+            <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                <LucideIcon name="Calendar" size={24} color={COLORS.primary} />
+                <span style={{ fontWeight: '600', color: COLORS.primary }}>The Treasury publishes yield curve data every trading day</span>
+              </div>
+              <p style={{ margin: 0, fontSize: '15px', color: COLORS.textSecondary }}>Bond traders watch the yield curve constantly. Changes in its shape can signal shifts in economic expectations.</p>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Think of it like checking the weather: the forecast changes as new information arrives. Similarly, the yield curve reflects the market's current beliefs about interest rates at different horizons.</p>
+          </>
+        );
+      }
+      if (step === 2) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>What the Yield Curve Tells Us</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>The yield curve encodes a lot of information:</p>
+            <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px' }}>
+              <ul style={{ margin: 0, paddingLeft: '20px', lineHeight: '2', color: COLORS.textPrimary }}>
+                <li><strong>Short-term rates:</strong> Heavily influenced by central bank policy</li>
+                <li><strong>Long-term rates:</strong> Reflect market expectations about future rates, inflation, and economic growth</li>
+                <li><strong>The slope:</strong> The difference between long and short rates carries meaning</li>
+              </ul>
+            </div>
+            <InsightBox><strong>Key Insight:</strong> The yield curve is like a collective forecast - millions of market participants voting with their money on what they think rates will do.</InsightBox>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Let's look at the different shapes this curve can take, and what each shape might mean.</p>
+          </>
+        );
+      }
+      return null;
+    };
+
+    const Part2CurveShapes = ({ step }) => {
+      if (step === 0) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>Shape #1: Normal (Upward Sloping)</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>The <strong>most common</strong> yield curve shape is upward sloping - longer maturities have higher rates.</p>
+            <YieldCurveVisual shape="normal" />
+            <div style={{ background: COLORS.successBg, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px', border: `1px solid ${COLORS.successBorder}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}><LucideIcon name="TrendingUp" size={24} color={COLORS.success} /><span style={{ fontWeight: '600', color: COLORS.success }}>Normal Yield Curve</span></div>
+              <p style={{ margin: 0, fontSize: '15px', color: COLORS.textPrimary }}>Lenders demand higher rates for longer commitments. This makes intuitive sense - more can go wrong over 30 years than over 1 year.</p>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>When you hear "the yield curve" without further qualification, people usually mean an upward-sloping curve like this.</p>
+          </>
+        );
+      }
+      if (step === 1) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>Shape #2: Flat</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Sometimes the yield curve becomes <strong>flat</strong> - similar rates across all maturities.</p>
+            <YieldCurveVisual shape="flat" />
+            <div style={{ background: COLORS.warningBg, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px', border: `1px solid ${COLORS.warningBorder}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}><LucideIcon name="Minus" size={24} color={COLORS.warning} /><span style={{ fontWeight: '600', color: COLORS.warning }}>Flat Yield Curve</span></div>
+              <p style={{ margin: 0, fontSize: '15px', color: COLORS.textPrimary }}>A flat curve is less common. It often appears during transitions - the economy moving from one state to another.</p>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>A flat curve might mean the market is uncertain about the future direction of rates, or that short-term rates have risen to match long-term rates.</p>
+          </>
+        );
+      }
+      if (step === 2) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>Shape #3: Inverted (Downward Sloping)</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>The most unusual - and most talked-about - shape is <strong>inverted</strong>: shorter maturities have <em>higher</em> rates than longer ones.</p>
+            <YieldCurveVisual shape="inverted" />
+            <div style={{ background: COLORS.errorBg, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px', border: `1px solid ${COLORS.error}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}><LucideIcon name="TrendingDown" size={24} color={COLORS.error} /><span style={{ fontWeight: '600', color: COLORS.error }}>Inverted Yield Curve</span></div>
+              <p style={{ margin: 0, fontSize: '15px', color: COLORS.textPrimary }}>An inverted curve is rare and significant. Historically, it has often preceded economic recessions.</p>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Why would short-term rates exceed long-term rates? We'll explore that next.</p>
+          </>
+        );
+      }
+      return null;
+    };
+
+    const Part3WhySlope = ({ step, onRabbitHole, exploredRabbitHoles }) => {
+      if (step === 0) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>Theories for the Upward Slope</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Why do longer maturities typically have higher rates? Several explanations have been proposed - and economists debate which matters most:</p>
+            <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px' }}>
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontWeight: '600', color: COLORS.primary, marginBottom: '8px' }}>1. Liquidity Preference</div>
+                <p style={{ margin: 0, fontSize: '15px', color: COLORS.textSecondary }}>Lenders prefer flexibility. They demand extra compensation to lock up their money for longer periods.</p>
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontWeight: '600', color: COLORS.primary, marginBottom: '8px' }}>2. Inflation Expectations</div>
+                <p style={{ margin: 0, fontSize: '15px', color: COLORS.textSecondary }}>Over longer horizons, there's more uncertainty about inflation. Lenders want compensation for that risk.</p>
+              </div>
+              <div>
+                <div style={{ fontWeight: '600', color: COLORS.primary, marginBottom: '8px' }}>3. Uncertainty Premium</div>
+                <p style={{ margin: 0, fontSize: '15px', color: COLORS.textSecondary }}>More can go wrong over longer periods - recessions, defaults, unexpected events. Higher rates compensate for this uncertainty.</p>
+              </div>
+            </div>
+            <InsightBox icon={<LucideIcon name="AlertTriangle" size={24} color={COLORS.gold} style={{ flexShrink: 0, marginTop: '2px' }} />}>
+              <strong>Important:</strong> These are <em>theories</em>, not certainties. Economists continue to debate which explanation best fits the data. Markets are complex.
+            </InsightBox>
+            <RabbitHoleButton id="whoDecides" onClick={() => onRabbitHole('whoDecides')} explored={exploredRabbitHoles.includes('whoDecides')}>
+              Who decides the yield curve? (It's not who you might think)
+            </RabbitHoleButton>
+          </>
+        );
+      }
+      if (step === 1) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>The Market Sets the Curve</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>One crucial point: the yield curve isn't set by any single authority. It emerges from the collective actions of millions of market participants.</p>
+            <div style={{ background: COLORS.accentLight, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <LucideIcon name="LineChart" size={24} color={COLORS.accent} style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <div style={{ fontWeight: '600', color: COLORS.accent, marginBottom: '8px' }}>The yield curve reflects market expectations</div>
+                  <p style={{ margin: 0, fontSize: '15px', color: COLORS.textPrimary }}>When people buy and sell bonds at various maturities, their transactions determine yields. The curve is a real-time summary of what the market collectively believes about the future.</p>
+                </div>
+              </div>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>The Federal Reserve influences short-term rates directly. But long-term rates are determined by the market - by pension funds, insurance companies, hedge funds, foreign governments, and countless other participants.</p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>This is why the yield curve can sometimes send signals that surprise policymakers.</p>
+          </>
+        );
+      }
+      return null;
+    };
+
+    const Part4InvertedCurve = ({ step, onRabbitHole, exploredRabbitHoles }) => {
+      if (step === 0) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>What Causes an Inversion?</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>If longer commitments normally require higher rates, why would the curve ever invert?</p>
+            <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px' }}>
+              <div style={{ fontWeight: '600', color: COLORS.primary, marginBottom: '12px' }}>The main explanation: Expectations of future rate cuts</div>
+              <p style={{ margin: 0, fontSize: '15px', color: COLORS.textSecondary, lineHeight: '1.7' }}>If the market expects the central bank to <em>lower</em> rates in the future (perhaps because a recession is coming), then long-term rates may fall below current short-term rates.</p>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Think of it this way: if you could lock in 4% for 10 years, and you expect short-term rates to fall to 2% next year, that 4% looks pretty good. Demand for long-term bonds rises, pushing their yields down.</p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Meanwhile, if the Fed is currently keeping short-term rates high (say, to fight inflation), short-term yields stay elevated.</p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>The result? An inverted curve.</p>
+          </>
+        );
+      }
+      if (step === 1) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>The Recession Signal</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Inverted yield curves have a notable track record:</p>
+            <div style={{ background: COLORS.errorBg, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px', border: `1px solid ${COLORS.error}` }}>
+              <div style={{ fontWeight: '600', color: COLORS.error, marginBottom: '12px' }}>Historical Pattern</div>
+              <p style={{ margin: 0, fontSize: '15px', color: COLORS.textPrimary, lineHeight: '1.7' }}>Every U.S. recession since the 1950s has been preceded by a yield curve inversion. When the curve inverts, financial headlines often warn of recession ahead.</p>
+            </div>
+            <InsightBox icon={<LucideIcon name="AlertTriangle" size={24} color={COLORS.gold} style={{ flexShrink: 0, marginTop: '2px' }} />}>
+              <strong>But be careful:</strong> The yield curve reflects <em>expectations</em>, not certainties. Not every inversion leads to recession, and timing is unpredictable. Markets can be wrong.
+            </InsightBox>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>The yield curve is a useful signal, but it's not a crystal ball. It tells you what the market <em>expects</em> - and those expectations don't always come true.</p>
+            <RabbitHoleButton id="inversion2022" onClick={() => onRabbitHole('inversion2022')} explored={exploredRabbitHoles.includes('inversion2022')}>
+              The 2022-2023 yield curve inversion - what happened?
+            </RabbitHoleButton>
+          </>
+        );
+      }
+      return null;
+    };
+
+    const Part5BondPricing = ({ step, completed, onComplete, soundEnabled, onRabbitHole, exploredRabbitHoles }) => {
+      if (step === 0) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>What This Means for Bond Pricing</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>If interest rates differ by maturity, should we use different rates to discount different cash flows?</p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}><strong>Technically, yes.</strong> A payment arriving in 1 year should be discounted at the 1-year rate. A payment arriving in 3 years should be discounted at the 3-year rate.</p>
+            <SpotRateDiscountingVisual />
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Let's see how this changes our bond pricing.</p>
+          </>
+        );
+      }
+      if (step === 1) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>Flat Curve vs. Upward Sloping Curve</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Consider a 3-year bond with $100 face value and a 6% coupon rate (annual payments).</p>
+            <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '16px', marginTop: '12px', marginBottom: '20px' }}><strong>Cash flows:</strong> $6, $6, $106</div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Let's compare two scenarios:</p>
+            <FlatVsSlopedComparison />
+            <InsightBox><strong>Key Insight:</strong> The bond is worth <strong>less</strong> when long-term rates are higher (upward sloping curve), even though the "average" rate is similar. The big final payment ($106) gets discounted more heavily.</InsightBox>
+            <CalculationBox key="sloped-pv-calc" prompt="With an upward sloping curve (5%, 6%, 7%), what is the bond's present value?" correctAnswer={CONSTANTS.PV_SLOPED} hint1="Add: $6/1.05 + $6/1.06^2 + $106/1.07^3" hint2="$5.71 + $5.34 + $86.53 = ?" onCorrect={() => onComplete('slopedPvCalc')} soundEnabled={soundEnabled} tolerance={CONSTANTS.TOLERANCE_PV} />
+          </>
+        );
+      }
+      if (step === 2) {
+        return (
+          <>
+            <h2 style={{ color: COLORS.primary, marginTop: 0 }}>The Practical Simplification</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>In practice, bond traders often use a single rate called the <strong>yield to maturity (YTM)</strong> instead of separate rates for each cash flow.</p>
+            <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px' }}>
+              <div style={{ fontWeight: '600', color: COLORS.primary, marginBottom: '12px' }}>Yield to Maturity (YTM)</div>
+              <p style={{ margin: 0, fontSize: '15px', color: COLORS.textSecondary, lineHeight: '1.7' }}>The single discount rate that, when applied to all cash flows, gives you the bond's current market price. It's a weighted average of the spot rates - convenient, but it hides information about the term structure.</p>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>For most purposes in this course, we'll continue using a single discount rate. But now you understand what's being simplified:</p>
+            <InsightBox><strong>The Big Picture:</strong> Using one rate assumes a flat yield curve. When the curve isn't flat, this is an approximation - usually a reasonable one for everyday purposes, but professionals care about the full term structure.</InsightBox>
+            <RabbitHoleButton id="spotVsYTM" onClick={() => onRabbitHole('spotVsYTM')} explored={exploredRabbitHoles.includes('spotVsYTM')}>
+              Spot rates vs. yield to maturity - what's the difference?
+            </RabbitHoleButton>
+          </>
+        );
+      }
+      return null;
+    };
+
+    const Part6Complete = ({ exploredRabbitHoles, totalRabbitHoles, onRabbitHole }) => (
+      <>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: COLORS.goldLight, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+            <LucideIcon name="Check" size={40} color={COLORS.gold} />
+          </div>
+          <h2 style={{ color: COLORS.primary, margin: '0 0 8px 0' }}>Tutorial Complete!</h2>
+          <p style={{ color: COLORS.textSecondary, margin: 0 }}>You've learned about the term structure of interest rates.</p>
+        </div>
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
+          <h3 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '18px' }}>What You Learned</h3>
+          <ul style={{ margin: 0, paddingLeft: '20px', lineHeight: '1.8', color: COLORS.textPrimary }}>
+            <li><strong>Term Structure:</strong> Interest rates differ by maturity - the 1-year rate isn't the same as the 10-year rate</li>
+            <li><strong>Yield Curve:</strong> A graph showing rates across maturities at a point in time</li>
+            <li><strong>Three Shapes:</strong> Normal (upward), flat, and inverted (downward)</li>
+            <li><strong>Inverted Curves:</strong> Historically associated with upcoming recessions, but not a perfect predictor</li>
+            <li><strong>Bond Pricing:</strong> Strictly speaking, each cash flow should be discounted at its maturity-appropriate rate</li>
+            <li><strong>Yield to Maturity:</strong> A single-rate simplification used in practice</li>
+          </ul>
+        </div>
+        <div style={{ background: COLORS.rabbitHoleLight, borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '16px' }}>
+            <LucideIcon name="Rabbit" size={20} color={COLORS.rabbitHole} />
+            <span style={{ fontWeight: '600', color: COLORS.rabbitHole }}>You explored {exploredRabbitHoles.length} of {totalRabbitHoles} rabbit holes</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {Object.keys(RABBIT_HOLES).map(id => (
+              <button key={id} onClick={() => onRabbitHole(id)} style={{ padding: '10px 14px', border: `1px solid ${COLORS.rabbitHoleBorder}`, borderRadius: '8px', background: exploredRabbitHoles.includes(id) ? COLORS.rabbitHoleLight : 'white', color: COLORS.rabbitHole, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', textAlign: 'left' }}>
+                <LucideIcon name="Rabbit" size={16} /><span style={{ flex: 1 }}>{RABBIT_HOLES[id].title}</span>{exploredRabbitHoles.includes(id) && <LucideIcon name="Check" size={16} />}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ background: COLORS.primaryLight, color: 'white', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
+          <div style={{ fontWeight: '600', marginBottom: '8px' }}>Deep Dive Complete!</div>
+          <div style={{ fontSize: '15px', marginBottom: '12px', opacity: 0.95 }}>You've explored the term structure of interest rates.</div>
+          <a href="index.html" style={{ display: 'inline-block', padding: '10px 24px', background: 'white', color: COLORS.primary, borderRadius: '8px', textDecoration: 'none', fontWeight: '500', fontSize: '15px' }}>Return to Hub</a>
+        </div>
+      </>
+    );
+
+    // ============================================================================
+    // MAIN COMPONENT
+    // ============================================================================
+
+    const Tutorial02G = () => {
+      const [currentPartIndex, setCurrentPartIndex] = useState(0);
+      const [currentStep, setCurrentStep] = useState(0);
+      const [soundEnabled, setSoundEnabled] = useState(true);
+      const [showGlossary, setShowGlossary] = useState(false);
+      const [showRestartConfirm, setShowRestartConfirm] = useState(false);
+      const [activeRabbitHole, setActiveRabbitHole] = useState(null);
+      const [exploredRabbitHoles, setExploredRabbitHoles] = useState([]);
+      const [devMode, setDevMode] = useState(false);
+      const [completed, setCompleted] = useState({});
+      const [headerClickCount, setHeaderClickCount] = useState(0);
+      const [lastClickTime, setLastClickTime] = useState(0);
+
+      const markComplete = useCallback((key) => setCompleted(prev => ({ ...prev, [key]: true })), []);
+
+      const handleContinue = useCallback(() => {
+        const currentPart = PARTS[currentPartIndex];
+        if (currentStep < currentPart.steps - 1) setCurrentStep(prev => prev + 1);
+        else if (currentPartIndex < PARTS.length - 1) { setCurrentPartIndex(prev => prev + 1); setCurrentStep(0); }
+      }, [currentPartIndex, currentStep]);
+
+      const handleBack = useCallback(() => {
+        if (currentStep > 0) setCurrentStep(prev => prev - 1);
+        else if (currentPartIndex > 0) { const prevIdx = currentPartIndex - 1; setCurrentPartIndex(prevIdx); setCurrentStep(PARTS[prevIdx].steps - 1); }
+      }, [currentPartIndex, currentStep]);
+
+      const handleRestart = useCallback(() => { setCurrentPartIndex(0); setCurrentStep(0); setExploredRabbitHoles([]); setCompleted({}); setShowRestartConfirm(false); }, []);
+
+      const handleRabbitHoleClick = useCallback((id) => {
+        setActiveRabbitHole(RABBIT_HOLES[id]);
+        if (!exploredRabbitHoles.includes(id)) setExploredRabbitHoles(prev => [...prev, id]);
+        if (soundEnabled) playSound('rabbitHole');
+      }, [exploredRabbitHoles, soundEnabled]);
+
+      const handleHeaderClick = useCallback(() => {
+        const now = Date.now();
+        if (now - lastClickTime < 500) {
+          const newCount = headerClickCount + 1;
+          setHeaderClickCount(newCount);
+          if (newCount >= 3) { setDevMode(prev => !prev); setHeaderClickCount(0); }
+        } else setHeaderClickCount(1);
+        setLastClickTime(now);
+      }, [headerClickCount, lastClickTime]);
+
+      const handleJumpToPart = useCallback((idx) => { setCurrentPartIndex(idx); setCurrentStep(0); }, []);
+
+      const canContinue = useCallback(() => {
+        const partId = PARTS[currentPartIndex].id;
+        if (partId === 'bondPricing' && currentStep === 1) return completed.slopedPvCalc;
+        if (partId === 'complete') return false;
+        return true;
+      }, [currentPartIndex, currentStep, completed]);
+
+      const renderCurrentPart = () => {
+        const partId = PARTS[currentPartIndex].id;
+        const props = { step: currentStep, completed, onComplete: markComplete, soundEnabled, onRabbitHole: handleRabbitHoleClick, exploredRabbitHoles };
+        switch (partId) {
+          case 'theAssumption': return <Part0TheAssumption {...props} />;
+          case 'yieldCurve': return <Part1YieldCurve {...props} />;
+          case 'curveShapes': return <Part2CurveShapes {...props} />;
+          case 'whySlope': return <Part3WhySlope {...props} />;
+          case 'invertedCurve': return <Part4InvertedCurve {...props} />;
+          case 'bondPricing': return <Part5BondPricing {...props} />;
+          case 'complete': return <Part6Complete exploredRabbitHoles={exploredRabbitHoles} totalRabbitHoles={Object.keys(RABBIT_HOLES).length} onRabbitHole={handleRabbitHoleClick} />;
+          default: return null;
+        }
+      };
+
+      const currentPart = PARTS[currentPartIndex];
+      const canGoBack = currentPartIndex > 0 || currentStep > 0;
+      const totalRabbitHoles = Object.keys(RABBIT_HOLES).length;
+
+      return (
+        <div style={{ minHeight: '100vh', background: COLORS.background, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+          <Header currentPartIndex={currentPartIndex} currentStep={currentStep} exploredRabbitHoles={exploredRabbitHoles} totalRabbitHoles={totalRabbitHoles} onGlossaryClick={() => setShowGlossary(true)} onRestartClick={() => setShowRestartConfirm(true)} onHeaderClick={handleHeaderClick} soundEnabled={soundEnabled} onSoundToggle={() => setSoundEnabled(prev => !prev)} />
+          <main style={{ maxWidth: '800px', margin: '0 auto', padding: '32px 24px' }}>
+            <div style={{ background: 'white', borderRadius: '16px', padding: '32px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              {renderCurrentPart()}
+              {currentPart.id !== 'complete' && <NavButtons onBack={handleBack} onContinue={handleContinue} canGoBack={canGoBack} canContinue={canContinue()} soundEnabled={soundEnabled} />}
+            </div>
+          </main>
+
+          {/* Tutorial Navigation Footer */}
+          <div style={{
+            background: '#00356b',
+            padding: '24px',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '16px',
+            marginTop: '40px',
+          }}>
+            <a href="index.html" style={{
+              padding: '12px 24px',
+              background: '#b8860b',
+              borderRadius: '8px',
+              color: 'white',
+              textDecoration: 'none',
+              textAlign: 'center',
+              minWidth: '140px',
+              fontWeight: '500',
+            }}>
+              Hub
+            </a>
+          </div>
+
+          {showGlossary && <GlossaryModal onClose={() => setShowGlossary(false)} />}
+          {showRestartConfirm && <RestartConfirmModal onConfirm={handleRestart} onCancel={() => setShowRestartConfirm(false)} />}
+          {activeRabbitHole && <RabbitHoleModal rabbitHole={activeRabbitHole} onClose={() => setActiveRabbitHole(null)} />}
+          {devMode && <DevModePanel onJumpToPart={handleJumpToPart} currentPartIndex={currentPartIndex} onClose={() => setDevMode(false)} />}
+        </div>
+      );
+    };
+
+    // Render the app
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<Tutorial02G />);
+  </script>
+</body>
+</html>

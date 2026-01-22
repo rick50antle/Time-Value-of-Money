@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutorial Extra: Pitfalls & Subtleties | Time Value of Money</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8fafc; min-height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+const { useState, useCallback, useEffect, useRef } = React;
+
+// LucideIcon wrapper for CDN version
+const LucideIcon = ({ name, size = 24, color = 'currentColor', style = {} }) => {
+    const iconRef = useRef(null);
+    useEffect(() => {
+        if (iconRef.current && lucide[name]) {
+            iconRef.current.innerHTML = '';
+            const svg = lucide.createElement(lucide[name]);
+            svg.setAttribute('width', size);
+            svg.setAttribute('height', size);
+            svg.setAttribute('stroke', color);
+            iconRef.current.appendChild(svg);
+        }
+    }, [name, size, color]);
+    return <span ref={iconRef} style={{ display: 'inline-flex', alignItems: 'center', ...style }} />;
+};
+
+
+// Icons:  ChevronLeft, ChevronRight, Rabbit, BookOpen, RotateCcw, Check, X, Volume2, VolumeX, AlertTriangle, TrendingDown, TrendingUp, Target, CreditCard, PiggyBank 
+
+const COLORS = {
+  primary: '#00356b', primaryLight: '#1a4a7a', primaryDark: '#002548',
+  background: '#f8fafc', surface: '#ffffff', surfaceAlt: '#f1f5f9',
+  border: '#e2e8f0', borderDark: '#cbd5e1',
+  textPrimary: '#1e293b', textSecondary: '#64748b', textMuted: '#94a3b8',
+  accent: '#0369a1', accentLight: '#e0f2fe',
+  gold: '#ca8a04', goldLight: '#fef9c3', goldBorder: '#eab308',
+  success: '#16a34a', successBg: '#f0fdf4', successBorder: '#86efac',
+  warning: '#d97706', warningBg: '#fffbeb', warningBorder: '#fcd34d',
+  error: '#dc2626', errorBg: '#fef2f2',
+  rabbitHole: '#7c3aed', rabbitHoleLight: '#ede9fe', rabbitHoleBorder: '#a78bfa',
+  trap: '#dc2626', trapLight: '#fef2f2', trapBorder: '#fca5a5',
+};
+
+const PARTS = [
+  { id: 'intro', title: 'Introduction', steps: 2 },
+  { id: 'arithmeticVsGeometric', title: 'The Average Return Lie', steps: 5 },
+  { id: 'percentageAsymmetry', title: 'Losses Hurt More', steps: 4 },
+  { id: 'aprVsEar', title: 'APR vs. EAR in the Wild', steps: 4 },
+  { id: 'nominalVsReal', title: 'Nominal vs. Real Returns', steps: 4 },
+  { id: 'reinvestmentAssumption', title: 'The Reinvestment Trap', steps: 3 },
+  { id: 'ruleOf72', title: 'Rule of 72', steps: 5 },
+  { id: 'complete', title: 'Complete', steps: 1 },
+];
+
+const RABBIT_HOLES = {
+  hedgeFundMeans: {
+    id: 'hedgeFundMeans', title: 'Why Hedge Funds Report Arithmetic Means', partId: 'arithmeticVsGeometric',
+    content: `When hedge funds report their performance, they often quote the arithmetic mean of their returns. Why? Because it's almost always higher than the geometric mean.\n\nIf a fund returned +40%, -20%, +30%, -10% over four years, the arithmetic mean is +10% per year. Sounds great! But the geometric mean — what your money actually grew at — is only +7.4%.\n\nThe lesson: Always ask which kind of average you're being shown.`
+  },
+  asymmetryMath: {
+    id: 'asymmetryMath', title: 'The Math Behind Percentage Asymmetry', partId: 'percentageAsymmetry',
+    content: `If you start with $100 and lose X%, you have $100 × (1 - X).\n\nTo get back to $100: G = X / (1 - X)\n\nFor a 50% loss: G = 0.5 / 0.5 = 100%`
+  },
+  truthInLending: {
+    id: 'truthInLending', title: 'Truth in Lending Act History', partId: 'aprVsEar',
+    content: `The Truth in Lending Act (TILA) was passed in 1968 to protect consumers. One key requirement: lenders must disclose the APR on loans.\n\nBut APR doesn't account for compounding frequency. A credit card charging 18% APR compounded daily actually costs 19.72% EAR.\n\nMeanwhile, savings accounts advertise APY (same as EAR) because it's higher.`
+  },
+  irvingFisher: {
+    id: 'irvingFisher', title: 'Irving Fisher and the Fisher Equation', partId: 'nominalVsReal',
+    content: `Irving Fisher (1867-1947) was a Yale professor who formalized: (1 + nominal) = (1 + real) × (1 + inflation)\n\nIronically, he declared stocks had reached "a permanently high plateau" just before the 1929 crash and lost his fortune.`
+  },
+  durationImmunization: {
+    id: 'durationImmunization', title: 'Immunization and Duration', partId: 'reinvestmentAssumption',
+    content: `"Duration" measures a bond's sensitivity to interest rate changes. "Immunization" matches asset duration to liability duration.\n\nFor individual investors: zero-coupon bonds eliminate reinvestment risk entirely.`
+  },
+  wheatChessboard: {
+    id: 'wheatChessboard', title: 'The Wheat and Chessboard Problem', partId: 'ruleOf72',
+    content: `The inventor of chess asked for 1 grain on square 1, 2 on square 2, doubling each square. Square 64 has ~9.2 quintillion grains — more wheat than ever produced in human history.`
+  },
+};
+
+const GLOSSARY = {
+  arithmeticMean: { term: 'Arithmetic Mean', definition: 'Simple average: add values, divide by count.' },
+  geometricMean: { term: 'Geometric Mean (CAGR)', definition: 'Compound annual growth rate — what actually happened to your wealth.' },
+  apr: { term: 'APR', definition: 'Annual Percentage Rate. Does NOT account for compounding.' },
+  ear: { term: 'EAR / APY', definition: 'Effective Annual Rate. The TRUE annual rate including compounding.' },
+  realReturn: { term: 'Real Return', definition: 'Return adjusted for inflation: (1+nominal)/(1+inflation)-1.' },
+  ruleOf72: { term: 'Rule of 72', definition: 'Years to double ≈ 72 ÷ interest rate.' },
+};
+
+const formatCurrency = (v) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(v);
+const formatPercent = (v, d = 1) => (v * 100).toFixed(d) + '%';
+const parseUserInput = (input) => parseFloat(String(input).replace(/[$%,\s]/g, ''));
+const checkAnswer = (userValue, correctValue, tolerance = 0.05) => Math.abs(userValue - correctValue) <= tolerance;
+
+const playSound = (type) => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    if (type === 'success') {
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
+    } else if (type === 'softNope' || type === 'trap') {
+      osc.frequency.setValueAtTime(220, ctx.currentTime);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.3);
+    } else if (type === 'click') {
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08);
+    } else if (type === 'rabbitHole') {
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.25);
+    }
+    setTimeout(() => ctx.close(), 500);
+  } catch (e) {}
+};
+
+const calculateProgress = (partIndex, step) => {
+  if (partIndex === PARTS.length - 1) return 100;
+  const total = PARTS.reduce((s, p) => s + p.steps, 0);
+  const done = PARTS.slice(0, partIndex).reduce((s, p) => s + p.steps, 0) + step;
+  return Math.round((done / total) * 100);
+};
+
+// UI COMPONENTS
+const Header = ({ currentPartIndex, currentStep, exploredRabbitHoles, onGlossaryClick, onRestartClick, onHeaderClick, soundEnabled, onSoundToggle }) => {
+  const progress = calculateProgress(currentPartIndex, currentStep);
+  return (
+    <header style={{ background: COLORS.primary, color: 'white', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 100 }}>
+      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <h1 onClick={onHeaderClick} style={{ fontSize: '18px', fontWeight: '600', margin: 0, cursor: 'default', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <LucideIcon name="AlertTriangle" size={20} /> Pitfalls & Subtleties
+          </h1>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button onClick={onSoundToggle} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: 'white', display: 'flex' }}>
+              {soundEnabled ? <LucideIcon name="Volume2" size={18} /> : <LucideIcon name="VolumeX" size={18} />}
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: COLORS.rabbitHoleLight, color: COLORS.rabbitHole, padding: '4px 10px', borderRadius: '12px', fontSize: '13px', fontWeight: '500' }}>
+              <LucideIcon name="Rabbit" size={14} /> {exploredRabbitHoles.length}/{Object.keys(RABBIT_HOLES).length}
+            </div>
+            <button onClick={onGlossaryClick} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
+              <LucideIcon name="BookOpen" size={16} /> Glossary
+            </button>
+            <button onClick={onRestartClick} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: 'white', display: 'flex' }}>
+              <LucideIcon name="RotateCcw" size={18} />
+            </button>
+          </div>
+        </div>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px', opacity: 0.9 }}>
+            <span>Part {currentPartIndex + 1}: {PARTS[currentPartIndex].title}</span>
+            <span>{progress}% complete</span>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
+            <div style={{ background: COLORS.goldBorder, height: '100%', width: progress + '%', transition: 'width 0.3s ease', borderRadius: '4px' }} />
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+};
+
+const NavButtons = ({ onBack, onContinue, canGoBack, canContinue, soundEnabled }) => (
+  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '32px', paddingTop: '24px', borderTop: '1px solid ' + COLORS.border }}>
+    <button onClick={() => { if (soundEnabled) playSound('click'); onBack(); }} disabled={!canGoBack}
+      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 20px', border: '1px solid ' + COLORS.border, borderRadius: '8px', background: 'white', color: canGoBack ? COLORS.textPrimary : COLORS.textMuted, cursor: canGoBack ? 'pointer' : 'not-allowed', fontSize: '15px', opacity: canGoBack ? 1 : 0.5 }}>
+      <LucideIcon name="ChevronLeft" size={18} /> Back
+    </button>
+    <button onClick={() => { if (soundEnabled) playSound('click'); onContinue(); }} disabled={!canContinue}
+      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 24px', border: 'none', borderRadius: '8px', background: canContinue ? COLORS.primary : COLORS.textMuted, color: 'white', cursor: canContinue ? 'pointer' : 'not-allowed', fontSize: '15px', fontWeight: '500' }}>
+      Continue <LucideIcon name="ChevronRight" size={18} />
+    </button>
+  </div>
+);
+
+const ChoiceButton = ({ label, selected, correct, submitted, onClick }) => {
+  let bg = 'white', border = COLORS.border;
+  if (selected && !submitted) { bg = COLORS.accentLight; border = COLORS.accent; }
+  else if (submitted && correct) { bg = COLORS.successBg; border = COLORS.successBorder; }
+  else if (submitted && selected) { bg = COLORS.warningBg; border = COLORS.warningBorder; }
+  return (
+    <button onClick={onClick} disabled={submitted}
+      style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '14px 16px', border: '2px solid ' + border, borderRadius: '10px', background: bg, cursor: submitted ? 'default' : 'pointer', fontSize: '15px', textAlign: 'left' }}>
+      {submitted && correct && <LucideIcon name="Check" size={20} color={COLORS.success} />}
+      {submitted && selected && !correct && <LucideIcon name="X" size={20} color={COLORS.warning} />}
+      {!submitted && <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid ' + (selected ? COLORS.accent : COLORS.border), background: selected ? COLORS.accent : 'white' }} />}
+      <span>{label}</span>
+    </button>
+  );
+};
+
+const InsightBox = ({ children }) => (
+  <div style={{ background: COLORS.goldLight, border: '2px solid ' + COLORS.goldBorder, borderRadius: '12px', padding: '20px', marginTop: '20px', marginBottom: '20px' }}>
+    <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+      <LucideIcon name="Target" size={24} color={COLORS.gold} style={{ flexShrink: 0, marginTop: '2px' }} />
+      <div style={{ fontSize: '16px', lineHeight: '1.6', color: COLORS.textPrimary, fontWeight: '500' }}>{children}</div>
+    </div>
+  </div>
+);
+
+const TrapBox = ({ children, title = "The Trap" }) => (
+  <div style={{ background: COLORS.trapLight, border: '2px solid ' + COLORS.trapBorder, borderRadius: '12px', padding: '20px', marginTop: '20px', marginBottom: '20px' }}>
+    <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+      <LucideIcon name="AlertTriangle" size={24} color={COLORS.trap} style={{ flexShrink: 0, marginTop: '2px' }} />
+      <div>
+        <div style={{ fontSize: '14px', fontWeight: '600', color: COLORS.trap, marginBottom: '8px', textTransform: 'uppercase' }}>{title}</div>
+        <div style={{ fontSize: '15px', lineHeight: '1.6', color: COLORS.textPrimary }}>{children}</div>
+      </div>
+    </div>
+  </div>
+);
+
+const TwoPathsVisual = ({ initialValue, returns, showArithmetic = true }) => {
+  const actualPath = [initialValue];
+  let curr = initialValue;
+  returns.forEach(r => { curr *= (1 + r); actualPath.push(curr); });
+  const arithMean = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const arithPath = [initialValue];
+  curr = initialValue;
+  for (let i = 0; i < returns.length; i++) { curr *= (1 + arithMean); arithPath.push(curr); }
+  const product = returns.reduce((acc, r) => acc * (1 + r), 1);
+  const geoMean = Math.pow(product, 1 / returns.length) - 1;
+  return (
+    <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '24px', marginTop: '16px' }}>
+      <div style={{ fontSize: '14px', color: COLORS.textSecondary, marginBottom: '16px' }}>Returns: {returns.map(r => formatPercent(r)).join(', ')}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '100px', fontSize: '13px', color: COLORS.textSecondary, fontWeight: '500' }}>Actual path:</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, flexWrap: 'wrap' }}>
+            {actualPath.map((val, i) => (
+              <React.Fragment key={i}>
+                <div style={{ background: COLORS.primary, color: 'white', padding: '8px 12px', borderRadius: '8px', fontFamily: 'monospace', fontSize: '14px', fontWeight: '600', minWidth: '70px', textAlign: 'center' }}>{formatCurrency(val)}</div>
+                {i < actualPath.length - 1 && <div style={{ color: COLORS.textMuted }}>→</div>}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+        {showArithmetic && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '100px', fontSize: '13px', color: COLORS.trap, fontWeight: '500' }}>If +{formatPercent(arithMean)}/yr:</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, flexWrap: 'wrap' }}>
+              {arithPath.map((val, i) => (
+                <React.Fragment key={i}>
+                  <div style={{ background: COLORS.trapLight, color: COLORS.trap, padding: '8px 12px', borderRadius: '8px', fontFamily: 'monospace', fontSize: '14px', fontWeight: '600', minWidth: '70px', textAlign: 'center', border: '1px dashed ' + COLORS.trapBorder }}>{formatCurrency(val)}</div>
+                  {i < arithPath.length - 1 && <div style={{ color: COLORS.textMuted }}>→</div>}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid ' + COLORS.border, display: 'flex', gap: '24px', fontSize: '14px', flexWrap: 'wrap' }}>
+        <div><span style={{ color: COLORS.textSecondary }}>Arithmetic mean: </span><span style={{ color: COLORS.trap, fontWeight: '600' }}>{formatPercent(arithMean)}</span></div>
+        <div><span style={{ color: COLORS.textSecondary }}>Geometric mean: </span><span style={{ color: COLORS.success, fontWeight: '600' }}>{formatPercent(geoMean)}</span></div>
+      </div>
+    </div>
+  );
+};
+
+const RecoveryTable = ({ showRows = 6 }) => {
+  const rows = [
+    { loss: 0.10, gain: 0.10 / 0.90 }, { loss: 0.20, gain: 0.20 / 0.80 },
+    { loss: 0.33, gain: 0.33 / 0.67 }, { loss: 0.50, gain: 0.50 / 0.50 },
+    { loss: 0.75, gain: 0.75 / 0.25 }, { loss: 0.90, gain: 0.90 / 0.10 },
+  ].slice(0, showRows);
+  return (
+    <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead><tr>
+          <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid ' + COLORS.border, color: COLORS.textSecondary, fontSize: '14px' }}><LucideIcon name="TrendingDown" size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Loss</th>
+          <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid ' + COLORS.border, color: COLORS.textSecondary, fontSize: '14px' }}><LucideIcon name="TrendingUp" size={16} style={{ marginRight: '6px', verticalAlign: 'middle' }} />Gain to Recover</th>
+        </tr></thead>
+        <tbody>{rows.map((row, i) => (
+          <tr key={i}>
+            <td style={{ padding: '12px', borderBottom: '1px solid ' + COLORS.border, fontFamily: 'monospace', fontSize: '15px', color: COLORS.error }}>-{formatPercent(row.loss, 0)}</td>
+            <td style={{ padding: '12px', borderBottom: '1px solid ' + COLORS.border, fontFamily: 'monospace', fontSize: '15px', color: COLORS.success, fontWeight: '600' }}>+{formatPercent(row.gain, 1)}</td>
+          </tr>
+        ))}</tbody>
+      </table>
+    </div>
+  );
+};
+
+const RabbitHoleButton = ({ rabbitHole, explored, onClick, soundEnabled }) => (
+  <button onClick={() => { if (soundEnabled) playSound('rabbitHole'); onClick(); }}
+    style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '14px 16px', border: '2px dashed ' + COLORS.rabbitHoleBorder, borderRadius: '10px', background: explored ? COLORS.rabbitHoleLight : 'white', color: COLORS.rabbitHole, cursor: 'pointer', fontSize: '14px', textAlign: 'left', marginTop: '16px' }}>
+    <LucideIcon name="Rabbit" size={20} style={{ flexShrink: 0 }} />
+    <span style={{ flex: 1 }}>{rabbitHole.title}</span>
+    {explored && <LucideIcon name="Check" size={18} />}
+  </button>
+);
+
+const Modal = ({ children, onClose, title, headerBg = COLORS.primary, headerIcon }) => (
+  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 1000 }}>
+    <div style={{ background: 'white', borderRadius: '16px', maxWidth: '600px', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '100%' }}>
+      <div style={{ background: headerBg, color: 'white', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {headerIcon}<h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600' }}>{title}</h2>
+      </div>
+      <div style={{ padding: '24px' }}>{children}</div>
+      <div style={{ padding: '16px 24px', borderTop: '1px solid ' + COLORS.border, display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={onClose} style={{ padding: '10px 24px', border: 'none', borderRadius: '8px', background: headerBg, color: 'white', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>
+          {title === 'Glossary' ? 'Close' : 'Back to Tutorial'}
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+const RestartModal = ({ onConfirm, onCancel }) => (
+  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 1000 }}>
+    <div style={{ background: 'white', borderRadius: '16px', maxWidth: '400px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+      <h2 style={{ margin: '0 0 12px 0', fontSize: '20px', color: COLORS.textPrimary }}>Restart Tutorial?</h2>
+      <p style={{ margin: '0 0 24px 0', color: COLORS.textSecondary }}>All progress will be lost.</p>
+      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+        <button onClick={onCancel} style={{ padding: '10px 20px', border: '1px solid ' + COLORS.border, borderRadius: '8px', background: 'white', cursor: 'pointer' }}>Cancel</button>
+        <button onClick={onConfirm} style={{ padding: '10px 20px', border: 'none', borderRadius: '8px', background: COLORS.error, color: 'white', fontWeight: '500', cursor: 'pointer' }}>Restart</button>
+      </div>
+    </div>
+  </div>
+);
+
+const DevPanel = ({ onJump, currentIndex, onClose }) => (
+  <div style={{ position: 'fixed', bottom: '20px', right: '20px', background: 'white', border: '2px solid ' + COLORS.warning, borderRadius: '12px', padding: '16px', boxShadow: '0 10px 40px rgba(0,0,0,0.15)', zIndex: 999, maxHeight: '400px', overflow: 'auto' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+      <h3 style={{ margin: 0, fontSize: '14px', color: COLORS.warning, fontWeight: '600' }}>🛠 Dev Mode</h3>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.textMuted }}><LucideIcon name="X" size={18} /></button>
+    </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {PARTS.map((part, i) => (
+        <button key={part.id} onClick={() => onJump(i)}
+          style={{ padding: '8px 12px', border: '1px solid ' + (i === currentIndex ? COLORS.warning : COLORS.border), borderRadius: '6px', background: i === currentIndex ? COLORS.warningBg : 'white', color: COLORS.textPrimary, fontSize: '13px', textAlign: 'left', cursor: 'pointer' }}>
+          {i + 1}. {part.title}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+const CalculationBox = ({ prompt, correctAnswer, hint1, hint2, onCorrect, soundEnabled, tolerance = 0.1 }) => {
+  const [input, setInput] = useState('');
+  const [attempts, setAttempts] = useState(0);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [showHint, setShowHint] = useState(null);
+  const handleCheck = () => {
+    const userValue = parseUserInput(input);
+    if (isNaN(userValue)) { setShowHint('Please enter a valid number'); return; }
+    if (checkAnswer(userValue, correctAnswer, tolerance)) {
+      setIsCorrect(true); if (soundEnabled) playSound('success'); onCorrect?.();
+    } else {
+      const newAttempts = attempts + 1; setAttempts(newAttempts);
+      if (soundEnabled) playSound('softNope');
+      if (newAttempts >= 3) { setShowHint('The answer is ' + correctAnswer.toFixed(2) + '%'); setIsCorrect(true); onCorrect?.(); }
+      else if (newAttempts === 2 && hint2) setShowHint(hint2);
+      else if (hint1) setShowHint(hint1);
+    }
+  };
+  return (
+    <div style={{ background: COLORS.surfaceAlt, border: '1px solid ' + COLORS.border, borderRadius: '12px', padding: '20px', marginTop: '16px' }}>
+      <p style={{ margin: '0 0 16px 0', fontSize: '15px', color: COLORS.textPrimary }}>{prompt}</p>
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <input type="text" value={input} onChange={(e) => setInput(e.target.value)} disabled={isCorrect} placeholder="0.00"
+            style={{ width: '100%', padding: '12px', paddingRight: '32px', border: '2px solid ' + (isCorrect ? COLORS.successBorder : COLORS.border), borderRadius: '8px', fontSize: '16px', fontFamily: 'monospace', background: isCorrect ? COLORS.successBg : 'white', boxSizing: 'border-box' }}
+            onKeyDown={(e) => e.key === 'Enter' && !isCorrect && handleCheck()} />
+          <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: COLORS.textMuted }}>%</span>
+        </div>
+        <button onClick={handleCheck} disabled={isCorrect || !input}
+          style={{ padding: '12px 20px', border: 'none', borderRadius: '8px', background: isCorrect ? COLORS.success : COLORS.primary, color: 'white', fontSize: '15px', fontWeight: '500', cursor: isCorrect || !input ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {isCorrect ? <LucideIcon name="Check" size={18} /> : 'Check'}
+        </button>
+      </div>
+      {showHint && <p style={{ marginTop: '12px', padding: '10px 12px', background: isCorrect && attempts >= 3 ? COLORS.warningBg : COLORS.accentLight, borderRadius: '6px', fontSize: '14px', color: isCorrect && attempts >= 3 ? COLORS.warning : COLORS.accent }}>{showHint}</p>}
+    </div>
+  );
+};
+
+const APRvsEARComparison = ({ apr, compoundingPeriods, label }) => {
+  const periodicRate = apr / compoundingPeriods;
+  const ear = Math.pow(1 + periodicRate, compoundingPeriods) - 1;
+  return (
+    <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px' }}>
+      <div style={{ fontSize: '14px', color: COLORS.textSecondary, marginBottom: '12px' }}>{label}</div>
+      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: '150px', padding: '16px', background: 'white', borderRadius: '8px', border: '1px solid ' + COLORS.border }}>
+          <div style={{ fontSize: '12px', color: COLORS.textMuted, marginBottom: '4px', textTransform: 'uppercase' }}>Quoted APR</div>
+          <div style={{ fontSize: '24px', fontWeight: '700', color: COLORS.textPrimary, fontFamily: 'monospace' }}>{formatPercent(apr)}</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', color: COLORS.textMuted }}>→</div>
+        <div style={{ flex: 1, minWidth: '150px', padding: '16px', background: COLORS.trapLight, borderRadius: '8px', border: '2px solid ' + COLORS.trapBorder }}>
+          <div style={{ fontSize: '12px', color: COLORS.trap, marginBottom: '4px', textTransform: 'uppercase' }}>Actual EAR</div>
+          <div style={{ fontSize: '24px', fontWeight: '700', color: COLORS.trap, fontFamily: 'monospace' }}>{formatPercent(ear, 2)}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// MAIN COMPONENT
+
+  const [partIndex, setPartIndex] = useState(0);
+  const [step, setStep] = useState(0);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showGlossary, setShowGlossary] = useState(false);
+  const [showRestart, setShowRestart] = useState(false);
+  const [activeRabbitHole, setActiveRabbitHole] = useState(null);
+  const [exploredRabbitHoles, setExploredRabbitHoles] = useState([]);
+  const [devMode, setDevMode] = useState(false);
+  const [clickCount, setClickCount] = useState(0);
+  const [lastClick, setLastClick] = useState(0);
+  const [questions, setQuestions] = useState({});
+  const [completed, setCompleted] = useState({});
+
+  const markComplete = useCallback((partId, stepIdx) => setCompleted(p => ({ ...p, [partId + '-' + stepIdx]: true })), []);
+  const setQ = useCallback((k, v) => setQuestions(p => ({ ...p, [k]: v })), []);
+
+  const handleContinue = useCallback(() => {
+    const curr = PARTS[partIndex];
+    if (step < curr.steps - 1) setStep(s => s + 1);
+    else if (partIndex < PARTS.length - 1) { setPartIndex(p => p + 1); setStep(0); }
+  }, [partIndex, step]);
+
+  const handleBack = useCallback(() => {
+    if (step > 0) setStep(s => s - 1);
+    else if (partIndex > 0) { const prev = partIndex - 1; setPartIndex(prev); setStep(PARTS[prev].steps - 1); }
+  }, [partIndex, step]);
+
+  const handleRabbitHole = useCallback((id) => {
+    setActiveRabbitHole(RABBIT_HOLES[id]);
+    if (!exploredRabbitHoles.includes(id)) setExploredRabbitHoles(p => [...p, id]);
+  }, [exploredRabbitHoles]);
+
+  const handleHeaderClick = useCallback(() => {
+    const now = Date.now();
+    if (now - lastClick < 500) {
+      const nc = clickCount + 1; setClickCount(nc);
+      if (nc >= 3) { setDevMode(d => !d); setClickCount(0); }
+    } else setClickCount(1);
+    setLastClick(now);
+  }, [clickCount, lastClick]);
+
+  const confirmRestart = useCallback(() => {
+    setPartIndex(0); setStep(0); setExploredRabbitHoles([]); setQuestions({}); setCompleted({}); setShowRestart(false);
+  }, []);
+
+  const canGoBack = partIndex > 0 || step > 0;
+  const currentPart = PARTS[partIndex];
+  
+  let canContinue = true;
+  if (currentPart.id === 'arithmeticVsGeometric' && step === 1 && !completed['arithmeticVsGeometric-1']) canContinue = false;
+  if (currentPart.id === 'percentageAsymmetry' && step === 1 && !completed['percentageAsymmetry-1']) canContinue = false;
+  if (currentPart.id === 'aprVsEar' && step === 2 && !completed['aprVsEar-2']) canContinue = false;
+  if (currentPart.id === 'nominalVsReal' && step === 3 && !completed['nominalVsReal-3']) canContinue = false;
+  if (currentPart.id === 'ruleOf72' && step === 1 && !completed['ruleOf72-1']) canContinue = false;
+  if (currentPart.id === 'ruleOf72' && step === 2 && !completed['ruleOf72-2']) canContinue = false;
+  if (currentPart.id === 'ruleOf72' && step === 4 && !completed['ruleOf72-4']) canContinue = false;
+
+  const renderContent = () => {
+    const partId = currentPart.id;
+    
+    // INTRO
+    if (partId === 'intro') {
+      if (step === 0) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>When Your Intuition Betrays You</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>You've learned the mechanics of compounding, discounting, and bond pricing. But there's a gap between <em>knowing the formulas</em> and <em>truly understanding them</em>.</p>
+        <TrapBox title="The Problem">Human intuition about percentages, averages, and exponential growth is systematically wrong. Even smart, educated people fall into the same traps.</TrapBox>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>This tutorial explores <strong>six common pitfalls</strong> where your intuition will mislead you.</p>
+      </>);
+      if (step === 1) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>The Six Traps</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
+          {[{num:1,title:'The Average Return Lie',desc:'Arithmetic mean ≠ Geometric mean'},{num:2,title:'Losses Hurt More',desc:'Percentage asymmetry'},{num:3,title:'APR vs. EAR',desc:'How institutions exploit the distinction'},{num:4,title:'Nominal vs. Real',desc:"Why you can't just subtract inflation"},{num:5,title:'The Reinvestment Trap',desc:'What YTM really assumes'},{num:6,title:'Exponential Intuition',desc:'Why small differences matter enormously'}].map(t => (
+            <div key={t.num} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: COLORS.surfaceAlt, borderRadius: '10px', border: '1px solid ' + COLORS.border }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: COLORS.primary, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600' }}>{t.num}</div>
+              <div><div style={{ fontWeight: '600', color: COLORS.textPrimary }}>{t.title}</div><div style={{ fontSize: '14px', color: COLORS.textSecondary }}>{t.desc}</div></div>
+            </div>
+          ))}
+        </div>
+        <p style={{ fontSize: '14px', color: COLORS.textSecondary, marginTop: '20px', fontStyle: 'italic' }}>Estimated time: 15-25 minutes</p>
+      </>);
+    }
+    
+    // PART 1: ARITHMETIC VS GEOMETRIC
+    if (partId === 'arithmeticVsGeometric') {
+      if (step === 0) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Trap #1: The Average Return Lie</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Let's start with a scenario that trips up almost everyone.</p>
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '20px', border: '1px solid ' + COLORS.border }}>
+          <p style={{ margin: 0, fontSize: '15px', color: COLORS.textPrimary }}>You invest <strong>$100</strong> in the stock market.</p>
+          <ul style={{ margin: '12px 0 0 0', paddingLeft: '20px', color: COLORS.textPrimary }}>
+            <li style={{ marginBottom: '8px' }}><strong>Year 1:</strong> You <span style={{ color: COLORS.error }}>lose 50%</span></li>
+            <li><strong>Year 2:</strong> You <span style={{ color: COLORS.success }}>gain 100%</span></li>
+          </ul>
+        </div>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary, marginTop: '20px' }}><strong>What was your average annual return?</strong></p>
+      </>);
+      if (step === 1) {
+        const sel = questions.avgReturn, sub = completed['arithmeticVsGeometric-1'];
+        return (<>
+          <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Calculate the Average</h2>
+          <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Year 1: -50% | Year 2: +100%</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
+            <ChoiceButton label="+25% per year" selected={sel === 'correct'} correct={true} submitted={sub} onClick={() => setQ('avgReturn', 'correct')} />
+            <ChoiceButton label="+50% per year" selected={sel === 'wrong1'} correct={false} submitted={sub} onClick={() => setQ('avgReturn', 'wrong1')} />
+            <ChoiceButton label="0% per year" selected={sel === 'wrong2'} correct={false} submitted={sub} onClick={() => setQ('avgReturn', 'wrong2')} />
+          </div>
+          {sel && !sub && <button onClick={() => { playSound(sel === 'correct' ? 'success' : 'softNope'); markComplete('arithmeticVsGeometric', 1); }} style={{ marginTop: '16px', padding: '12px 24px', border: 'none', borderRadius: '8px', background: COLORS.primary, color: 'white', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>Submit</button>}
+          {sub && <div style={{ marginTop: '16px', padding: '16px', background: sel === 'correct' ? COLORS.successBg : COLORS.warningBg, borderRadius: '10px' }}><p style={{ margin: 0, fontSize: '15px' }}>{sel === 'correct' ? <><strong>Correct!</strong> The arithmetic mean is (-50% + 100%) ÷ 2 = <strong>+25%</strong>.</> : <><strong>Not quite.</strong> (-50% + 100%) ÷ 2 = <strong>+25%</strong>.</>}</p></div>}
+        </>);
+      }
+      if (step === 2) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Now Follow the Money</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>You calculated an average return of <strong>+25% per year</strong>.</p>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary, marginTop: '16px' }}>If that were your <em>actual</em> growth rate:</p>
+        <div style={{ background: COLORS.trapLight, borderRadius: '12px', padding: '20px', marginTop: '16px', fontFamily: 'monospace', fontSize: '16px', textAlign: 'center', border: '1px dashed ' + COLORS.trapBorder }}>$100 × 1.25 × 1.25 = <strong>$156.25</strong></div>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary, marginTop: '20px' }}>But let's trace what <em>actually</em> happened:</p>
+        <TwoPathsVisual initialValue={100} returns={[-0.5, 1.0]} showArithmetic={false} />
+        <p style={{ fontSize: '18px', fontWeight: '600', color: COLORS.trap, marginTop: '20px', textAlign: 'center' }}>You ended up with exactly $100 — right where you started!</p>
+      </>);
+      if (step === 3) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>The Trap Revealed</h2>
+        <TrapBox>Your "average return" was +25% per year, but you made <strong>nothing</strong>.</TrapBox>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>There are <strong>two different kinds of averages</strong>:</p>
+        <div style={{ display: 'flex', gap: '16px', marginTop: '20px', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: '200px', padding: '20px', background: COLORS.trapLight, borderRadius: '12px', border: '2px solid ' + COLORS.trapBorder }}>
+            <h3 style={{ margin: '0 0 8px 0', color: COLORS.trap, fontSize: '16px' }}>Arithmetic Mean</h3>
+            <p style={{ margin: 0, fontSize: '14px', color: COLORS.textPrimary }}>Add up returns, divide by count.<br/><span style={{ fontFamily: 'monospace' }}>(-50 + 100) / 2 = 25%</span></p>
+          </div>
+          <div style={{ flex: 1, minWidth: '200px', padding: '20px', background: COLORS.successBg, borderRadius: '12px', border: '2px solid ' + COLORS.successBorder }}>
+            <h3 style={{ margin: '0 0 8px 0', color: COLORS.success, fontSize: '16px' }}>Geometric Mean (CAGR)</h3>
+            <p style={{ margin: 0, fontSize: '14px', color: COLORS.textPrimary }}>Actual compound growth rate.<br/><span style={{ fontFamily: 'monospace' }}>(0.5 × 2.0)^(1/2) - 1 = 0%</span></p>
+          </div>
+        </div>
+        <InsightBox><strong>Arithmetic mean:</strong> What happened "on average".<br/><strong>Geometric mean:</strong> What happened to your money.<br/><br/>For wealth, only the geometric mean matters.</InsightBox>
+      </>);
+      if (step === 4) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Why Volatility Destroys Wealth</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Compare two investments, both with +10% arithmetic mean:</p>
+        <div style={{ marginTop: '20px' }}><div style={{ marginBottom: '8px' }}><strong>Investment A:</strong> Steady +10%, +10%</div><TwoPathsVisual initialValue={100} returns={[0.10, 0.10]} showArithmetic={false} /></div>
+        <div style={{ marginTop: '24px' }}><div style={{ marginBottom: '8px' }}><strong>Investment B:</strong> Volatile +30%, -10%</div><TwoPathsVisual initialValue={100} returns={[0.30, -0.10]} showArithmetic={false} /></div>
+        <InsightBox>Same arithmetic average, but the volatile investment ends up with <strong>less money</strong> ($117 vs $121). This is "volatility drag."</InsightBox>
+        <RabbitHoleButton rabbitHole={RABBIT_HOLES.hedgeFundMeans} explored={exploredRabbitHoles.includes('hedgeFundMeans')} onClick={() => handleRabbitHole('hedgeFundMeans')} soundEnabled={soundEnabled} />
+      </>);
+    }
+    
+    // PART 2: PERCENTAGE ASYMMETRY
+    if (partId === 'percentageAsymmetry') {
+      if (step === 0) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Trap #2: Losses Hurt More Than Gains Help</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Here's a quick question that seems trivially easy:</p>
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '20px', border: '1px solid ' + COLORS.border, textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: '18px', color: COLORS.textPrimary }}>If your investment <span style={{ color: COLORS.error, fontWeight: '600' }}>loses 10%</span>,<br/>what gain do you need to get back to even?</p>
+        </div>
+      </>);
+      if (step === 1) {
+        const sel = questions.recovery10, sub = completed['percentageAsymmetry-1'];
+        return (<>
+          <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Recovering from a 10% Loss</h2>
+          <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>You start with $100 and lose 10%. Now you have $90.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
+            <ChoiceButton label="10%" selected={sel === 'wrong'} correct={false} submitted={sub} onClick={() => setQ('recovery10', 'wrong')} />
+            <ChoiceButton label="11.1%" selected={sel === 'correct'} correct={true} submitted={sub} onClick={() => setQ('recovery10', 'correct')} />
+            <ChoiceButton label="9%" selected={sel === 'wrong2'} correct={false} submitted={sub} onClick={() => setQ('recovery10', 'wrong2')} />
+          </div>
+          {sel && !sub && <button onClick={() => { playSound(sel === 'correct' ? 'success' : 'trap'); markComplete('percentageAsymmetry', 1); }} style={{ marginTop: '16px', padding: '12px 24px', border: 'none', borderRadius: '8px', background: COLORS.primary, color: 'white', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>Submit</button>}
+          {sub && <div style={{ marginTop: '16px', padding: '16px', background: sel === 'correct' ? COLORS.successBg : COLORS.trapLight, borderRadius: '10px' }}><p style={{ margin: 0, fontSize: '15px' }}>{sel === 'correct' ? <><strong>Correct!</strong> $90 × 1.111 = $100</> : <><strong>This is the trap!</strong> $90 × 1.10 = $99 — still short!</>}</p></div>}
+        </>);
+      }
+      if (step === 2) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>The Asymmetry Gets Worse</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>The gap grows dramatically as losses increase:</p>
+        <RecoveryTable showRows={6} />
+        <TrapBox title="The Pattern">To recover from 50% loss → need 100% gain (2×).<br/>To recover from 90% loss → need 900% gain (10×).</TrapBox>
+      </>);
+      if (step === 3) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Why This Matters</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>This asymmetry explains why <strong>risk management matters more than chasing returns</strong>.</p>
+        <InsightBox>Warren Buffett's Rule #1: "Don't lose money."<br/>Rule #2: "Don't forget Rule #1."<br/><br/>This isn't folksy wisdom — it's mathematical reality.</InsightBox>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary, marginTop: '20px' }}>The formula:</p>
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px', textAlign: 'center', fontFamily: 'monospace', fontSize: '18px' }}>Gain needed = L / (1 - L)</div>
+        <RabbitHoleButton rabbitHole={RABBIT_HOLES.asymmetryMath} explored={exploredRabbitHoles.includes('asymmetryMath')} onClick={() => handleRabbitHole('asymmetryMath')} soundEnabled={soundEnabled} />
+      </>);
+    }
+    
+    // PART 3: APR VS EAR
+    if (partId === 'aprVsEar') {
+      if (step === 0) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Trap #3: APR vs. EAR in the Wild</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>You've learned that APR and EAR are different. But how is this difference <em>exploited</em> in the real world?</p>
+        <div style={{ display: 'flex', gap: '16px', marginTop: '24px', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: '180px', padding: '20px', background: COLORS.surfaceAlt, borderRadius: '12px', border: '1px solid ' + COLORS.border, textAlign: 'center' }}>
+            <LucideIcon name="CreditCard" size={32} color={COLORS.primary} style={{ marginBottom: '12px' }} />
+            <div style={{ fontSize: '14px', fontWeight: '600', color: COLORS.textPrimary }}>Credit Cards</div>
+            <div style={{ fontSize: '13px', color: COLORS.textSecondary, marginTop: '4px' }}>Quote APR</div>
+          </div>
+          <div style={{ flex: 1, minWidth: '180px', padding: '20px', background: COLORS.surfaceAlt, borderRadius: '12px', border: '1px solid ' + COLORS.border, textAlign: 'center' }}>
+            <LucideIcon name="PiggyBank" size={32} color={COLORS.success} style={{ marginBottom: '12px' }} />
+            <div style={{ fontSize: '14px', fontWeight: '600', color: COLORS.textPrimary }}>Savings Accounts</div>
+            <div style={{ fontSize: '13px', color: COLORS.textSecondary, marginTop: '4px' }}>Quote APY (= EAR)</div>
+          </div>
+        </div>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary, marginTop: '24px' }}><strong>Why the difference?</strong> Let's see...</p>
+      </>);
+      if (step === 1) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>The Credit Card Example</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>A credit card advertises "<strong>18% APR</strong>." But interest compounds <strong>daily</strong>.</p>
+        <APRvsEARComparison apr={0.18} compoundingPeriods={365} label="18% APR compounded daily" />
+        <TrapBox title="The Hidden Cost">The advertised rate is 18%, but you're actually paying <strong>19.72%</strong> — almost 2 percentage points more!</TrapBox>
+      </>);
+      if (step === 2) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Your Turn</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>A credit card charges <strong>24% APR</strong>, compounded <strong>monthly</strong>. What's the EAR?</p>
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '8px', padding: '16px', marginTop: '12px', fontFamily: 'monospace', fontSize: '14px', color: COLORS.textSecondary }}>Formula: EAR = (1 + APR/n)^n - 1</div>
+        <CalculationBox prompt="Calculate the EAR for 24% APR compounded monthly:" correctAnswer={26.82} hint1="(1 + 0.24/12)^12 - 1" hint2="1.02^12 = 1.2682..." onCorrect={() => markComplete('aprVsEar', 2)} soundEnabled={soundEnabled} tolerance={0.1} />
+      </>);
+      if (step === 3) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>The Marketing Asymmetry</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Now you see the pattern:</p>
+        <div style={{ display: 'flex', gap: '16px', marginTop: '20px', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: '200px', padding: '20px', background: COLORS.trapLight, borderRadius: '12px', border: '2px solid ' + COLORS.trapBorder }}>
+            <LucideIcon name="CreditCard" size={24} color={COLORS.trap} style={{ marginBottom: '8px' }} />
+            <h3 style={{ margin: '0 0 8px 0', color: COLORS.trap, fontSize: '16px' }}>Credit Cards</h3>
+            <p style={{ margin: 0, fontSize: '14px', color: COLORS.textPrimary }}>Quote <strong>APR</strong> (lower number)<br/><span style={{ color: COLORS.textSecondary }}>Makes borrowing look cheaper</span></p>
+          </div>
+          <div style={{ flex: 1, minWidth: '200px', padding: '20px', background: COLORS.successBg, borderRadius: '12px', border: '2px solid ' + COLORS.successBorder }}>
+            <LucideIcon name="PiggyBank" size={24} color={COLORS.success} style={{ marginBottom: '8px' }} />
+            <h3 style={{ margin: '0 0 8px 0', color: COLORS.success, fontSize: '16px' }}>Savings Accounts</h3>
+            <p style={{ margin: 0, fontSize: '14px', color: COLORS.textPrimary }}>Quote <strong>APY/EAR</strong> (higher number)<br/><span style={{ color: COLORS.textSecondary }}>Makes saving look better</span></p>
+          </div>
+        </div>
+        <InsightBox>Financial institutions always quote whichever rate makes their product look better. <strong>APR for lending, APY for saving.</strong></InsightBox>
+        <RabbitHoleButton rabbitHole={RABBIT_HOLES.truthInLending} explored={exploredRabbitHoles.includes('truthInLending')} onClick={() => handleRabbitHole('truthInLending')} soundEnabled={soundEnabled} />
+      </>);
+    }
+    
+    // PART 4: NOMINAL VS REAL
+    if (partId === 'nominalVsReal') {
+      if (step === 0) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Trap #4: Nominal vs. Real Returns</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Here's a simple scenario:</p>
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '20px', border: '1px solid ' + COLORS.border }}>
+          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+            <div><div style={{ fontSize: '13px', color: COLORS.textSecondary, marginBottom: '4px' }}>Your Investment Return</div><div style={{ fontSize: '28px', fontWeight: '700', color: COLORS.success }}>+8%</div></div>
+            <div><div style={{ fontSize: '13px', color: COLORS.textSecondary, marginBottom: '4px' }}>Inflation</div><div style={{ fontSize: '28px', fontWeight: '700', color: COLORS.error }}>3%</div></div>
+          </div>
+        </div>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary, marginTop: '24px' }}><strong>What was your real return?</strong></p>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, fontStyle: 'italic' }}>Most people answer: 8% - 3% = 5%</p>
+      </>);
+      if (step === 1) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>The Common Mistake</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>The intuitive approach is subtraction:</p>
+        <div style={{ background: COLORS.trapLight, borderRadius: '12px', padding: '20px', marginTop: '16px', border: '2px dashed ' + COLORS.trapBorder, textAlign: 'center' }}>
+          <div style={{ fontSize: '14px', color: COLORS.trap, marginBottom: '8px', fontWeight: '600' }}>THE COMMON (WRONG) ANSWER</div>
+          <div style={{ fontFamily: 'monospace', fontSize: '18px', color: COLORS.textPrimary }}>8% - 3% = <span style={{ color: COLORS.trap, fontWeight: '700' }}>5%</span></div>
+        </div>
+        <TrapBox title="But That's Wrong!">The correct answer is <strong>4.85%</strong>, not 5%.</TrapBox>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary, marginTop: '20px' }}>The right formula uses division:</p>
+        <div style={{ background: COLORS.successBg, borderRadius: '12px', padding: '20px', marginTop: '16px', border: '2px solid ' + COLORS.successBorder, textAlign: 'center' }}>
+          <div style={{ fontSize: '14px', color: COLORS.success, marginBottom: '8px', fontWeight: '600' }}>THE CORRECT ANSWER</div>
+          <div style={{ fontFamily: 'monospace', fontSize: '18px', color: COLORS.textPrimary }}>(1.08) / (1.03) - 1 = <span style={{ color: COLORS.success, fontWeight: '700' }}>4.85%</span></div>
+        </div>
+      </>);
+      if (step === 2) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Why It Matters: Larger Numbers</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>The error is small at low rates. But what if returns and inflation are higher?</p>
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '20px', border: '1px solid ' + COLORS.border }}>
+          <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '16px' }}>
+            <div><div style={{ fontSize: '13px', color: COLORS.textSecondary, marginBottom: '4px' }}>Nominal Return</div><div style={{ fontSize: '28px', fontWeight: '700', color: COLORS.success }}>+50%</div></div>
+            <div><div style={{ fontSize: '13px', color: COLORS.textSecondary, marginBottom: '4px' }}>Inflation</div><div style={{ fontSize: '28px', fontWeight: '700', color: COLORS.error }}>20%</div></div>
+          </div>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: '150px', padding: '16px', background: COLORS.trapLight, borderRadius: '8px', border: '1px dashed ' + COLORS.trapBorder }}>
+              <div style={{ fontSize: '12px', color: COLORS.trap, marginBottom: '4px' }}>WRONG (subtraction)</div>
+              <div style={{ fontFamily: 'monospace', fontSize: '20px', color: COLORS.trap, fontWeight: '700' }}>30%</div>
+            </div>
+            <div style={{ flex: 1, minWidth: '150px', padding: '16px', background: COLORS.successBg, borderRadius: '8px', border: '1px solid ' + COLORS.successBorder }}>
+              <div style={{ fontSize: '12px', color: COLORS.success, marginBottom: '4px' }}>CORRECT (division)</div>
+              <div style={{ fontFamily: 'monospace', fontSize: '20px', color: COLORS.success, fontWeight: '700' }}>25%</div>
+            </div>
+          </div>
+        </div>
+        <TrapBox title="The Error Grows">With higher rates, the error is <strong>5 percentage points!</strong></TrapBox>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary, marginTop: '20px' }}>This is the <strong>Fisher Equation</strong>:</p>
+        <div style={{ background: COLORS.goldLight, borderRadius: '12px', padding: '20px', marginTop: '16px', border: '2px solid ' + COLORS.goldBorder, textAlign: 'center' }}>
+          <div style={{ fontFamily: 'monospace', fontSize: '18px', color: COLORS.textPrimary }}>(1 + real) = (1 + nominal) / (1 + inflation)</div>
+        </div>
+      </>);
+      if (step === 3) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Your Turn</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Your portfolio returned <strong>12%</strong> this year, while inflation was <strong>4%</strong>. What was your real return?</p>
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '8px', padding: '16px', marginTop: '12px', fontFamily: 'monospace', fontSize: '14px', color: COLORS.textSecondary }}>Remember: Real = (1 + Nominal) / (1 + Inflation) - 1</div>
+        <CalculationBox prompt="Calculate the real return:" correctAnswer={7.69} hint1="1.12 / 1.04 - 1" hint2="1.0769... ≈ 7.69%" onCorrect={() => markComplete('nominalVsReal', 3)} soundEnabled={soundEnabled} tolerance={0.1} />
+        <RabbitHoleButton rabbitHole={RABBIT_HOLES.irvingFisher} explored={exploredRabbitHoles.includes('irvingFisher')} onClick={() => handleRabbitHole('irvingFisher')} soundEnabled={soundEnabled} />
+      </>);
+    }
+    
+    // PART 5: REINVESTMENT ASSUMPTION
+    if (partId === 'reinvestmentAssumption') {
+      if (step === 0) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Trap #5: The Reinvestment Trap</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Recall how we calculate YTM (Yield to Maturity): it's the discount rate that makes the present value of all a bond's cash flows equal to its current price.</p>
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '20px', border: '1px solid ' + COLORS.border }}>
+          <p style={{ margin: 0, fontSize: '15px', color: COLORS.textPrimary }}>YTM is a single number that summarizes a bond's return.<br/><br/>But there's a hidden assumption buried inside...</p>
+        </div>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary, marginTop: '24px' }}><strong>When a bond pays you a coupon, what do you do with that money?</strong></p>
+      </>);
+      if (step === 1) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>The Hidden Assumption</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>When you receive a coupon payment, you have to put it <em>somewhere</em>.</p>
+        <TrapBox title="The Hidden Assumption">The YTM calculation implicitly assumes you reinvest every coupon payment at... <strong>the same YTM rate</strong>.</TrapBox>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary, marginTop: '20px' }}>But can you actually do that? <strong>Rarely!</strong> Interest rates change constantly.</p>
+      </>);
+      if (step === 2) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Why It Matters</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>What happens after you buy a bond with a certain YTM:</p>
+        <div style={{ display: 'flex', gap: '16px', marginTop: '20px', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: '220px', padding: '20px', background: COLORS.trapLight, borderRadius: '12px', border: '2px solid ' + COLORS.trapBorder }}>
+            <div style={{ fontSize: '14px', fontWeight: '600', color: COLORS.trap, marginBottom: '8px' }}>If rates FALL</div>
+            <p style={{ margin: 0, fontSize: '14px', color: COLORS.textPrimary }}>Your coupon reinvestments earn <strong>less</strong> than the YTM assumed.<br/><br/>Actual return &lt; YTM</p>
+          </div>
+          <div style={{ flex: 1, minWidth: '220px', padding: '20px', background: COLORS.successBg, borderRadius: '12px', border: '2px solid ' + COLORS.successBorder }}>
+            <div style={{ fontSize: '14px', fontWeight: '600', color: COLORS.success, marginBottom: '8px' }}>If rates RISE</div>
+            <p style={{ margin: 0, fontSize: '14px', color: COLORS.textPrimary }}>Your coupon reinvestments earn <strong>more</strong> than the YTM assumed.<br/><br/>Actual return &gt; YTM</p>
+          </div>
+        </div>
+        <InsightBox><strong>Zero-coupon bonds avoid this entirely.</strong> No coupons means nothing to reinvest. The YTM you see is the return you'll actually get (if held to maturity).</InsightBox>
+        <RabbitHoleButton rabbitHole={RABBIT_HOLES.durationImmunization} explored={exploredRabbitHoles.includes('durationImmunization')} onClick={() => handleRabbitHole('durationImmunization')} soundEnabled={soundEnabled} />
+      </>);
+    }
+    
+    // PART 6: RULE OF 72
+    if (partId === 'ruleOf72') {
+      if (step === 0) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Trap #6: The Rule of 72</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Here's a handy shortcut for estimating how long it takes money to double:</p>
+        <div style={{ background: COLORS.goldLight, borderRadius: '12px', padding: '24px', marginTop: '20px', border: '2px solid ' + COLORS.goldBorder, textAlign: 'center' }}>
+          <div style={{ fontSize: '14px', color: COLORS.gold, marginBottom: '8px', fontWeight: '600' }}>THE RULE OF 72</div>
+          <div style={{ fontFamily: 'monospace', fontSize: '20px', color: COLORS.textPrimary }}>Years to double ≈ 72 ÷ interest rate</div>
+        </div>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary, marginTop: '20px' }}>At <strong>6%</strong> interest: 72 ÷ 6 = <strong>12 years</strong> to double.</p>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>But here's the trap: <strong>humans are terrible at intuiting exponential growth</strong>.</p>
+      </>);
+      if (step === 1) {
+        const sel = questions.rule72Years, sub = completed['ruleOf72-1'];
+        return (<>
+          <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Test the Rule</h2>
+          <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>At <strong>8%</strong> interest, approximately how many years does it take to double your money?</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
+            <ChoiceButton label="7 years" selected={sel === 'wrong1'} correct={false} submitted={sub} onClick={() => setQ('rule72Years', 'wrong1')} />
+            <ChoiceButton label="9 years" selected={sel === 'correct'} correct={true} submitted={sub} onClick={() => setQ('rule72Years', 'correct')} />
+            <ChoiceButton label="12 years" selected={sel === 'wrong2'} correct={false} submitted={sub} onClick={() => setQ('rule72Years', 'wrong2')} />
+          </div>
+          {sel && !sub && <button onClick={() => { playSound(sel === 'correct' ? 'success' : 'softNope'); markComplete('ruleOf72', 1); }} style={{ marginTop: '16px', padding: '12px 24px', border: 'none', borderRadius: '8px', background: COLORS.primary, color: 'white', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>Submit</button>}
+          {sub && <div style={{ marginTop: '16px', padding: '16px', background: sel === 'correct' ? COLORS.successBg : COLORS.warningBg, borderRadius: '10px' }}><p style={{ margin: 0, fontSize: '15px' }}>{sel === 'correct' ? <><strong>Correct!</strong> 72 ÷ 8 = <strong>9 years</strong>.</> : <><strong>Not quite.</strong> 72 ÷ 8 = <strong>9 years</strong>.</>}</p></div>}
+        </>);
+      }
+      if (step === 2) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Your Turn</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>At <strong>4%</strong> interest, how many years to double?</p>
+        <CalculationBox prompt="Enter your answer:" correctAnswer={18} hint1="72 ÷ 4 = ?" hint2="= 18 years" tolerance={1} soundEnabled={soundEnabled} onCorrect={() => markComplete('ruleOf72', 2)} />
+      </>);
+      if (step === 3) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>Why Small Differences Matter</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>Here's where intuition fails us. Compare <strong>7%</strong> vs. <strong>10%</strong> over 30 years:</p>
+        <div style={{ display: 'flex', gap: '16px', marginTop: '20px', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: '220px', padding: '20px', background: COLORS.surfaceAlt, borderRadius: '12px', border: '1px solid ' + COLORS.border }}>
+            <div style={{ fontSize: '14px', color: COLORS.textSecondary, marginBottom: '8px' }}>At 7% (≈10.3 years to double)</div>
+            <div style={{ fontFamily: 'monospace', fontSize: '20px', color: COLORS.textPrimary, marginBottom: '8px' }}>$10,000 → <strong>$76,123</strong></div>
+            <div style={{ fontSize: '13px', color: COLORS.textMuted }}>Doubles ~2.9 times</div>
+          </div>
+          <div style={{ flex: 1, minWidth: '220px', padding: '20px', background: COLORS.successBg, borderRadius: '12px', border: '2px solid ' + COLORS.successBorder }}>
+            <div style={{ fontSize: '14px', color: COLORS.success, marginBottom: '8px' }}>At 10% (≈7.2 years to double)</div>
+            <div style={{ fontFamily: 'monospace', fontSize: '20px', color: COLORS.textPrimary, marginBottom: '8px' }}>$10,000 → <strong>$174,494</strong></div>
+            <div style={{ fontSize: '13px', color: COLORS.textMuted }}>Doubles ~4.2 times</div>
+          </div>
+        </div>
+        <TrapBox title="The Trap">A 3 percentage point difference seems small. But over 30 years, it's the difference between <strong>$76K</strong> and <strong>$174K</strong> — more than 2× the money!</TrapBox>
+        <InsightBox>This is why investment fees matter so much. A 1% annual fee doesn't <em>sound</em> like much, but over decades it can cost you hundreds of thousands of dollars.</InsightBox>
+      </>);
+      if (step === 4) return (<>
+        <h2 style={{ margin: '0 0 16px 0', color: COLORS.primary, fontSize: '24px' }}>One More Practice</h2>
+        <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textPrimary }}>At <strong>9%</strong> interest, how many years to double?</p>
+        <CalculationBox prompt="Enter your answer:" correctAnswer={8} hint1="72 ÷ 9 = ?" hint2="= 8 years" tolerance={1} soundEnabled={soundEnabled} onCorrect={() => markComplete('ruleOf72', 4)} />
+        <RabbitHoleButton rabbitHole={RABBIT_HOLES.wheatChessboard} explored={exploredRabbitHoles.includes('wheatChessboard')} onClick={() => handleRabbitHole('wheatChessboard')} soundEnabled={soundEnabled} />
+      </>);
+    }
+    
+    // COMPLETE
+    if (partId === 'complete') {
+      return (<>
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: COLORS.successBg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', border: '3px solid ' + COLORS.successBorder }}><LucideIcon name="Check" size={40} color={COLORS.success} /></div>
+          <h2 style={{ margin: '0 0 8px 0', color: COLORS.primary, fontSize: '28px' }}>Tutorial Complete!</h2>
+          <p style={{ color: COLORS.textSecondary, fontSize: '16px' }}>You've explored the pitfalls where intuition fails.</p>
+        </div>
+        <div style={{ background: COLORS.goldLight, border: '2px solid ' + COLORS.goldBorder, borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
+          <h3 style={{ margin: '0 0 16px 0', color: COLORS.gold, fontSize: '18px' }}>The Six Traps:</h3>
+          <ol style={{ margin: 0, paddingLeft: '20px', color: COLORS.textPrimary, lineHeight: '1.8' }}>
+            <li><strong>Arithmetic ≠ Geometric Mean</strong></li>
+            <li><strong>Percentage Asymmetry</strong></li>
+            <li><strong>APR vs. EAR</strong></li>
+            <li><strong>Nominal vs. Real</strong></li>
+            <li><strong>Reinvestment Assumption</strong></li>
+            <li><strong>Exponential Intuition</strong></li>
+          </ol>
+        </div>
+        <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginBottom: '20px' }}>
+          <h3 style={{ margin: '0 0 16px 0', color: COLORS.textPrimary, fontSize: '16px' }}><LucideIcon name="Rabbit" size={18} style={{ marginRight: '8px', verticalAlign: 'middle' }} />Rabbit Holes: {exploredRabbitHoles.length}/{Object.keys(RABBIT_HOLES).length}</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {Object.values(RABBIT_HOLES).map(rh => (
+              <button key={rh.id} onClick={() => handleRabbitHole(rh.id)} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '12px 14px', border: '1px solid ' + COLORS.rabbitHoleBorder, borderRadius: '8px', background: exploredRabbitHoles.includes(rh.id) ? COLORS.rabbitHoleLight : 'white', color: COLORS.rabbitHole, cursor: 'pointer', fontSize: '14px', textAlign: 'left' }}>
+                <LucideIcon name="Rabbit" size={16} /><span style={{ flex: 1 }}>{rh.title}</span>{exploredRabbitHoles.includes(rh.id) && <LucideIcon name="Check" size={16} />}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ background: COLORS.primaryLight, color: 'white', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
+          <p style={{ margin: '0 0 12px 0', fontSize: '15px', lineHeight: 1.7, opacity: 0.95 }}>
+            Now you know where intuition fails. Apply these lessons to every financial calculation you encounter.
+          </p>
+          <a href="index.html" style={{ display: 'inline-block', padding: '10px 24px', background: 'white', color: COLORS.primary, borderRadius: '8px', textDecoration: 'none', fontWeight: '500', fontSize: '15px' }}>
+            Return to Hub
+          </a>
+        </div>
+      </>);
+    }
+    
+    return null;
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', background: COLORS.background, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+      <Header currentPartIndex={partIndex} currentStep={step} exploredRabbitHoles={exploredRabbitHoles}
+        onGlossaryClick={() => setShowGlossary(true)} onRestartClick={() => setShowRestart(true)}
+        onHeaderClick={handleHeaderClick} soundEnabled={soundEnabled} onSoundToggle={() => setSoundEnabled(s => !s)} />
+      
+      <main style={{ maxWidth: '800px', margin: '0 auto', padding: '32px 24px' }}>
+        <div style={{ background: 'white', borderRadius: '16px', padding: '32px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          {renderContent()}
+          {currentPart.id !== 'complete' && (
+            <NavButtons onBack={handleBack} onContinue={handleContinue} canGoBack={canGoBack} canContinue={canContinue} soundEnabled={soundEnabled} />
+          )}
+        </div>
+      </main>
+
+      {/* Tutorial Navigation Footer */}
+      <div style={{
+        background: '#00356b',
+        padding: '24px',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: '16px',
+        marginTop: '40px',
+      }}>
+        <a href="index.html" style={{
+          padding: '12px 24px',
+          background: '#b8860b',
+          borderRadius: '8px',
+          color: 'white',
+          textDecoration: 'none',
+          textAlign: 'center',
+          minWidth: '140px',
+          fontWeight: '500',
+        }}>
+          Hub
+        </a>
+      </div>
+
+      {showGlossary && (
+        <Modal onClose={() => setShowGlossary(false)} title="Glossary" headerIcon={<LucideIcon name="BookOpen" size={24} />}>
+          {Object.values(GLOSSARY).map((item, i) => (
+            <div key={item.term} style={{ padding: '16px 0', borderBottom: i < Object.values(GLOSSARY).length - 1 ? '1px solid ' + COLORS.border : 'none' }}>
+              <h3 style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: '600', color: COLORS.primary }}>{item.term}</h3>
+              <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.5', color: COLORS.textSecondary }}>{item.definition}</p>
+            </div>
+          ))}
+        </Modal>
+      )}
+      
+      {activeRabbitHole && (
+        <Modal onClose={() => setActiveRabbitHole(null)} title={activeRabbitHole.title} headerBg={COLORS.rabbitHole} headerIcon={<LucideIcon name="Rabbit" size={24} />}>
+          {activeRabbitHole.content.split('\n\n').map((p, i) => <p key={i} style={{ margin: i === 0 ? 0 : '16px 0 0 0', fontSize: '15px', lineHeight: '1.7', color: COLORS.textPrimary }}>{p}</p>)}
+        </Modal>
+      )}
+      
+      {showRestart && <RestartModal onConfirm={confirmRestart} onCancel={() => setShowRestart(false)} />}
+      {devMode && <DevPanel onJump={(i) => { setPartIndex(i); setStep(0); }} currentIndex={partIndex} onClose={() => setDevMode(false)} />}
+    </div>
+  );
+}
+
+// Render
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<TutorialExtraPitfalls />);
+    </script>
+</body>
+</html>
