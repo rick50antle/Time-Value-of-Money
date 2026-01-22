@@ -1,0 +1,4062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutorial 02C: Naming & Practice | Time Value of Money</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8fafc; min-height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+const { useState, useCallback, useEffect, useRef } = React;
+
+const LucideIcon = ({ name, size = 24, color = 'currentColor', style = {} }) => {
+    const iconRef = useRef(null);
+    useEffect(() => {
+        if (iconRef.current && lucide[name]) {
+            iconRef.current.innerHTML = '';
+            const svg = lucide.createElement(lucide[name]);
+            svg.setAttribute('width', size);
+            svg.setAttribute('height', size);
+            svg.setAttribute('stroke', color);
+            iconRef.current.appendChild(svg);
+        }
+    }, [name, size, color]);
+    return <span ref={iconRef} style={{ display: 'inline-flex', alignItems: 'center', ...style }} />;
+};
+
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const CONSTANTS = {
+  // Core financial values (carried from 02A/02B)
+  RATE: 0.06,
+  PV: 83.96,
+  FV: 100.00,
+  PERIODS: 3,
+  
+  // Intermediate compounding values (for recap visual)
+  PERIOD_1_VALUE: 89.00,    // 83.96 × 1.06
+  PERIOD_2_VALUE: 94.34,    // 89.00 × 1.06
+  
+  // Simple annuity example ($10 per period)
+  SIMPLE_ANNUITY: {
+    payment: 10.00,
+    pv1: 9.43,      // 10 / 1.06
+    pv2: 8.90,      // 10 / 1.06²
+    pv3: 8.40,      // 10 / 1.06³
+    totalPV: 26.73  // Sum
+  },
+  
+  // Verification annuity ($31.41 per period = same PV as $83.96 lump sum)
+  VERIFICATION_ANNUITY: {
+    payment: 31.41,
+    pv1: 29.63,     // 31.41 / 1.06
+    pv2: 27.95,     // 31.41 / 1.06²
+    pv3: 26.38,     // 31.41 / 1.06³
+    totalPV: 83.96  // Same as Stream A!
+  },
+  
+  // Irregular cash flow stream
+  IRREGULAR_STREAM: {
+    cf1: 5.00,
+    cf2: 15.00,
+    cf3: 8.00,
+    pv1: 4.72,      // 5 / 1.06
+    pv2: 13.35,     // 15 / 1.06²
+    pv3: 6.72,      // 8 / 1.06³
+    totalPV: 24.79  // Sum
+  },
+  
+  // Calculation tolerances
+  TOLERANCE: 0.05,          // ±$0.05 for single calculations
+  TOLERANCE_SUM: 0.10,      // ±$0.10 for sums (accumulates rounding)
+  
+  // Long stream for "tedious" demonstration (10 payments of $100)
+  LONG_STREAM: {
+    payment: 100.00,
+    periods: 10,
+    // PV factors for display (1/1.06^n)
+    factors: [
+      0.9434,  // 1/1.06
+      0.8900,  // 1/1.06²
+      0.8396,  // 1/1.06³
+      0.7921,  // 1/1.06⁴
+      0.7473,  // 1/1.06⁵
+      0.7050,  // 1/1.06⁶
+      0.6651,  // 1/1.06⁷
+      0.6274,  // 1/1.06⁸
+      0.5919,  // 1/1.06⁹
+      0.5584,  // 1/1.06¹⁰
+    ],
+  },
+};
+
+// ============================================================================
+// COLORS (Yale Blue Theme)
+// ============================================================================
+
+const COLORS = {
+  // Core Yale blue
+  primary: '#00356b',
+  primaryLight: '#1a4a7a',
+  primaryDark: '#002548',
+  
+  // Backgrounds
+  background: '#f8fafc',
+  surface: '#ffffff',
+  surfaceAlt: '#f1f5f9',
+  
+  // Borders
+  border: '#e2e8f0',
+  borderDark: '#cbd5e1',
+  
+  // Text
+  textPrimary: '#1e293b',
+  textSecondary: '#64748b',
+  textMuted: '#94a3b8',
+  
+  // Accent colors (for borrowing/discounting)
+  accent: '#0369a1',
+  accentLight: '#e0f2fe',
+  
+  // Gold for insights and destinations
+  gold: '#ca8a04',
+  goldLight: '#fef9c3',
+  goldBorder: '#eab308',
+  
+  // Green for success and lending/compounding
+  success: '#16a34a',
+  successBg: '#f0fdf4',
+  successBorder: '#86efac',
+  
+  // Warning/incorrect
+  warning: '#d97706',
+  warningBg: '#fffbeb',
+  warningBorder: '#fcd34d',
+  
+  // Error
+  error: '#dc2626',
+  errorBg: '#fef2f2',
+  
+  // Rabbit holes (purple theme)
+  rabbitHole: '#7c3aed',
+  rabbitHoleLight: '#ede9fe',
+  rabbitHoleBorder: '#a78bfa',
+};
+
+// ============================================================================
+// TUTORIAL STRUCTURE
+// ============================================================================
+
+const PARTS = [
+  { id: 'recap', title: 'Quick Recap', steps: 1 },
+  { id: 'vocabulary', title: 'Vocabulary', steps: 4 },
+  { id: 'annuity', title: 'The Annuity Stream', steps: 5 },
+  { id: 'irregular', title: 'Irregular Cash Flows', steps: 4 },
+  { id: 'tedious', title: 'This Gets Tedious', steps: 3 },
+  { id: 'complete', title: 'Complete', steps: 1 },
+];
+
+// ============================================================================
+// RABBIT HOLES DATA
+// ============================================================================
+
+const RABBIT_HOLES = {
+  whyDiscount: {
+    id: 'whyDiscount',
+    title: 'Why "Discount"?',
+    partId: 'vocabulary',
+    content: `The word "discount" has a fascinating history in finance.
+
+Originally, it referred to the practice of buying bills of exchange or promissory notes for less than their face value. If someone owed you $100 payable in a year, and you needed cash now, you could sell that promise to a banker — but at a "discount" from the $100.
+
+The banker might give you $94 today for the right to collect $100 later. That $6 difference? The discount.
+
+So when we "discount" future cash flows, we're doing exactly what those early bankers did: figuring out what a future payment is worth if you want it today. The word stuck because the present value is always less than the future value (assuming positive interest rates).
+
+Interestingly, this practice dates back to medieval Italian merchants, who developed sophisticated techniques for valuing delayed payments. The Medici family built much of their banking empire on such transactions.`
+  },
+  
+  realWorldAnnuities: {
+    id: 'realWorldAnnuities',
+    title: 'Annuities in Real Life',
+    partId: 'annuity',
+    content: `Annuities are everywhere once you start looking:
+
+**Lottery Winnings**: When someone wins "$1 million," they often have a choice: take a lump sum now (say, $600,000) or receive $50,000 per year for 20 years. The lottery company is essentially asking: which do you prefer, the present value or the annuity?
+
+**Pensions**: Traditional pensions promise a fixed monthly payment for life — an annuity. When companies offer buyouts to pension holders, they're calculating the present value of those future payments.
+
+**Car Loans & Mortgages**: Your monthly payment is designed so that if you pay that fixed amount for N months, you'll exactly pay off the loan. The bank calculated the annuity payment that has a present value equal to your loan amount.
+
+**Lease Payments**: Whether it's a car lease or office space, fixed periodic payments are annuities. The lessor figures out what payment stream has a present value equal to what they need to earn.
+
+The annuity formula was so important historically because it appears in so many real transactions. Before computers, having a formula (or tables of pre-computed values) was essential for doing business.`
+  },
+  
+  spreadsheetRevolution: {
+    id: 'spreadsheetRevolution',
+    title: 'The Spreadsheet Revolution',
+    partId: 'tedious',
+    content: `Before spreadsheets, financial calculations were genuinely tedious.
+
+**1979: VisiCalc** — Created by Dan Bricklin and Bob Frankston, VisiCalc was the first spreadsheet program. It ran on the Apple II and is credited with turning personal computers from hobbyist toys into business tools. Accountants and financial analysts could suddenly do in minutes what used to take hours with calculators and paper.
+
+**1983: Lotus 1-2-3** — This became the "killer app" for IBM PCs. Lotus 1-2-3 dominated business computing for a decade. Companies bought PCs specifically to run Lotus.
+
+**1985: Excel** — Microsoft released Excel for the Macintosh, then Windows. It eventually overtook Lotus and became the standard.
+
+Why did spreadsheets matter so much? Because finance is fundamentally about:
+• Repetitive calculations (discount each payment...)
+• "What if?" analysis (what if rates change?)
+• Keeping track of many numbers at once
+
+All things that humans do poorly and computers do well.
+
+The professor's father bought a $489 calculator in the early days — a fortune then! — and within years, banks were giving away calculators as promotional items. Technology moves fast.`
+  },
+};
+
+// ============================================================================
+// GLOSSARY DATA
+// ============================================================================
+
+const GLOSSARY = {
+  interestRate: {
+    term: 'Interest Rate',
+    definition: 'The market price of borrowing or lending money through time, expressed as a percentage per period. In our frictionless world, the borrowing rate equals the lending rate.',
+  },
+  presentValue: {
+    term: 'Present Value (PV)',
+    definition: 'The value today of a future amount of money, discounted at a given interest rate. What future money is worth right now.',
+  },
+  futureValue: {
+    term: 'Future Value (FV)',
+    definition: 'The value at a future date of money invested today, grown at a given interest rate. What current money will be worth later.',
+  },
+  compounding: {
+    term: 'Compounding',
+    definition: 'Growing money forward through time by multiplying by (1 + r) for each period. "Walking forward" on the timeline. Uses the interest rate.',
+  },
+  discounting: {
+    term: 'Discounting',
+    definition: 'Finding what future money is worth today by dividing by (1 + r) for each period. "Walking backward" on the timeline.',
+  },
+  discountRate: {
+    term: 'Discount Rate',
+    definition: 'The interest rate when used for discounting (finding present values). Reflects your opportunity cost — what you could earn by investing elsewhere. There is no special name for the rate when compounding; we just call it the interest rate.',
+  },
+  annuity: {
+    term: 'Annuity',
+    definition: 'A stream of equal payments at regular intervals. Simplifies present value calculations because each payment is the same amount.',
+  },
+};
+
+// ============================================================================
+// SOUND SYSTEM
+// ============================================================================
+
+const playSound = (type) => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    switch (type) {
+      case 'success':
+        // Rising three-note chime (C-E-G)
+        oscillator.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+        oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
+        oscillator.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2); // G5
+        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.4);
+        break;
+        
+      case 'softNope':
+        // Falling two-note (G-E)
+        oscillator.frequency.setValueAtTime(783.99, ctx.currentTime); // G5
+        oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15); // E5
+        gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.3);
+        break;
+        
+      case 'click':
+        // Quick click
+        oscillator.frequency.setValueAtTime(600, ctx.currentTime);
+        gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.08);
+        break;
+        
+      case 'rabbitHole':
+        // Whimsical single tone with slight vibrato
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, ctx.currentTime); // A5
+        oscillator.frequency.setValueAtTime(932.33, ctx.currentTime + 0.05); // A#5
+        oscillator.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.25);
+        break;
+        
+      case 'insight':
+        // Gentle ascending arpeggio (C-E-G-C)
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(523.25, ctx.currentTime);      // C5
+        oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.12); // E5
+        oscillator.frequency.setValueAtTime(783.99, ctx.currentTime + 0.24); // G5
+        oscillator.frequency.setValueAtTime(1046.50, ctx.currentTime + 0.36); // C6
+        gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.5);
+        break;
+        
+      default:
+        break;
+    }
+    
+    setTimeout(() => ctx.close(), 600);
+  } catch (e) {
+    // Fail silently if audio not available
+  }
+};
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
+
+const parseUserInput = (input) => {
+  // Remove $, commas, and whitespace
+  const cleaned = String(input).replace(/[$,\s]/g, '');
+  return parseFloat(cleaned);
+};
+
+const checkAnswer = (userValue, correctValue, tolerance = CONSTANTS.TOLERANCE) => {
+  const parsed = parseUserInput(userValue);
+  if (isNaN(parsed)) return false;
+  return Math.abs(parsed - correctValue) <= tolerance;
+};
+
+const calculateProgress = (currentPartIndex, currentStep) => {
+  const totalSteps = PARTS.reduce((sum, p) => sum + p.steps, 0);
+  const completedSteps = PARTS.slice(0, currentPartIndex).reduce((sum, p) => sum + p.steps, 0) + currentStep;
+  // If on the final part (Complete), show 100%
+  if (currentPartIndex === PARTS.length - 1) {
+    return 100;
+  }
+  return Math.round((completedSteps / totalSteps) * 100);
+};
+
+// ============================================================================
+// UI COMPONENTS
+// ============================================================================
+
+// --- Header Component ---
+const Header = ({ 
+  currentPartIndex, 
+  currentStep, 
+  exploredRabbitHoles, 
+  totalRabbitHoles, 
+  onGlossaryClick, 
+  onRestartClick,
+  onHeaderClick,
+  soundEnabled,
+  onSoundToggle 
+}) => {
+  const currentPart = PARTS[currentPartIndex];
+  const progress = calculateProgress(currentPartIndex, currentStep);
+  
+  return (
+    <header style={{
+      background: COLORS.primary,
+      color: 'white',
+      padding: '16px 24px',
+      position: 'sticky',
+      top: 0,
+      zIndex: 100,
+    }}>
+      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+        {/* Top Row */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '12px',
+        }}>
+          <h1 
+            onClick={onHeaderClick}
+            style={{ 
+              margin: 0, 
+              fontSize: '18px', 
+              fontWeight: '600',
+              cursor: 'default',
+              userSelect: 'none',
+            }}
+          >
+            Tutorial 2C: Naming & Practice
+          </h1>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {/* Sound Toggle */}
+            <button
+              onClick={onSoundToggle}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px',
+                cursor: 'pointer',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+            >
+              {soundEnabled ? <LucideIcon name="Volume2" size={18} /> : <LucideIcon name="VolumeX" size={18} />}
+            </button>
+            
+            {/* Rabbit Hole Counter */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: COLORS.rabbitHoleLight,
+              color: COLORS.rabbitHole,
+              padding: '4px 10px',
+              borderRadius: '12px',
+              fontSize: '13px',
+              fontWeight: '500',
+            }}>
+              <LucideIcon name="Rabbit" size={14} />
+              {exploredRabbitHoles.length}/{totalRabbitHoles}
+            </div>
+            
+            {/* Glossary Button */}
+            <button
+              onClick={onGlossaryClick}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px 10px',
+                cursor: 'pointer',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '13px',
+              }}
+            >
+              <LucideIcon name="BookOpen" size={16} />
+              Glossary
+            </button>
+            
+            {/* Restart Button */}
+            <button
+              onClick={onRestartClick}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px',
+                cursor: 'pointer',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title="Restart tutorial"
+            >
+              <LucideIcon name="RotateCcw" size={18} />
+            </button>
+          </div>
+        </div>
+        
+        {/* Progress Section */}
+        <div>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: '13px',
+            marginBottom: '6px',
+            opacity: 0.9,
+          }}>
+            <span>Part {currentPartIndex + 1}: {currentPart.title}</span>
+            <span>{progress}% complete</span>
+          </div>
+          
+          {/* Progress Bar */}
+          <div style={{
+            background: 'rgba(255,255,255,0.2)',
+            borderRadius: '4px',
+            height: '6px',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              background: COLORS.goldBorder,
+              height: '100%',
+              width: `${progress}%`,
+              transition: 'width 0.3s ease',
+              borderRadius: '4px',
+            }} />
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+};
+
+// --- Navigation Buttons ---
+const NavButtons = ({ 
+  onBack, 
+  onContinue, 
+  canGoBack, 
+  canContinue, 
+  continueLabel = 'Continue',
+  soundEnabled 
+}) => {
+  const handleContinue = () => {
+    if (soundEnabled) playSound('click');
+    onContinue();
+  };
+  
+  const handleBack = () => {
+    if (soundEnabled) playSound('click');
+    onBack();
+  };
+  
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      marginTop: '32px',
+      paddingTop: '24px',
+      borderTop: `1px solid ${COLORS.border}`,
+    }}>
+      <button
+        onClick={handleBack}
+        disabled={!canGoBack}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '10px 20px',
+          border: `1px solid ${COLORS.border}`,
+          borderRadius: '8px',
+          background: 'white',
+          color: canGoBack ? COLORS.textPrimary : COLORS.textMuted,
+          cursor: canGoBack ? 'pointer' : 'not-allowed',
+          fontSize: '15px',
+          opacity: canGoBack ? 1 : 0.5,
+        }}
+      >
+        <LucideIcon name="ChevronLeft" size={18} />
+        Back
+      </button>
+      
+      <button
+        onClick={handleContinue}
+        disabled={!canContinue}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '10px 24px',
+          border: 'none',
+          borderRadius: '8px',
+          background: canContinue ? COLORS.primary : COLORS.textMuted,
+          color: 'white',
+          cursor: canContinue ? 'pointer' : 'not-allowed',
+          fontSize: '15px',
+          fontWeight: '500',
+        }}
+      >
+        {continueLabel}
+        <LucideIcon name="ChevronRight" size={18} />
+      </button>
+    </div>
+  );
+};
+
+// --- Calculation Box ---
+const CalculationBox = ({ 
+  prompt, 
+  correctAnswer, 
+  hint1, 
+  hint2, 
+  onCorrect,
+  soundEnabled,
+  tolerance = CONSTANTS.TOLERANCE,
+  inputKey // unique key for resetting
+}) => {
+  const [input, setInput] = useState('');
+  const [attempts, setAttempts] = useState(0);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [showHint, setShowHint] = useState(null);
+  
+  const handleCheck = () => {
+    const userValue = parseUserInput(input);
+    
+    if (isNaN(userValue)) {
+      setShowHint('Please enter a valid number');
+      return;
+    }
+    
+    if (checkAnswer(userValue, correctAnswer, tolerance)) {
+      setIsCorrect(true);
+      if (soundEnabled) playSound('success');
+      onCorrect?.();
+    } else {
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      if (soundEnabled) playSound('softNope');
+      
+      if (newAttempts >= 3) {
+        setShowHint(`The answer is ${formatCurrency(correctAnswer)}`);
+        setIsCorrect(true); // Allow progression
+        setInput(correctAnswer.toFixed(2));
+        onCorrect?.();
+      } else if (newAttempts === 2 && hint2) {
+        setShowHint(hint2);
+      } else if (hint1) {
+        setShowHint(hint1);
+      }
+    }
+  };
+  
+  return (
+    <div style={{
+      background: COLORS.surfaceAlt,
+      border: `1px solid ${COLORS.border}`,
+      borderRadius: '12px',
+      padding: '20px',
+      marginTop: '16px',
+    }}>
+      <p style={{
+        margin: '0 0 16px 0',
+        fontSize: '15px',
+        color: COLORS.textPrimary,
+      }}>
+        {prompt}
+      </p>
+      
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <span style={{
+            position: 'absolute',
+            left: '12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: COLORS.textMuted,
+          }}>$</span>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={isCorrect}
+            placeholder="0.00"
+            style={{
+              width: '100%',
+              padding: '12px 12px 12px 28px',
+              border: `2px solid ${isCorrect ? COLORS.successBorder : COLORS.border}`,
+              borderRadius: '8px',
+              fontSize: '16px',
+              fontFamily: 'monospace',
+              background: isCorrect ? COLORS.successBg : 'white',
+              boxSizing: 'border-box',
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && !isCorrect && handleCheck()}
+          />
+        </div>
+        
+        <button
+          onClick={handleCheck}
+          disabled={isCorrect || !input}
+          style={{
+            padding: '12px 20px',
+            border: 'none',
+            borderRadius: '8px',
+            background: isCorrect ? COLORS.success : COLORS.primary,
+            color: 'white',
+            fontSize: '15px',
+            fontWeight: '500',
+            cursor: isCorrect || !input ? 'default' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+        >
+          {isCorrect ? <LucideIcon name="Check" size={18} /> : 'Check'}
+        </button>
+      </div>
+      
+      {showHint && (
+        <p style={{
+          marginTop: '12px',
+          padding: '10px 12px',
+          background: isCorrect && attempts >= 3 ? COLORS.warningBg : COLORS.accentLight,
+          borderRadius: '6px',
+          fontSize: '14px',
+          color: isCorrect && attempts >= 3 ? COLORS.warning : COLORS.accent,
+        }}>
+          {showHint}
+        </p>
+      )}
+    </div>
+  );
+};
+
+// --- Insight Box ---
+const InsightBox = ({ children, icon, soundEnabled, onShow }) => {
+  const [hasPlayed, setHasPlayed] = useState(false);
+  
+  // Play sound on first render
+  React.useEffect(() => {
+    if (soundEnabled && !hasPlayed) {
+      playSound('insight');
+      setHasPlayed(true);
+      onShow?.();
+    }
+  }, [soundEnabled, hasPlayed, onShow]);
+  
+  return (
+    <div style={{
+      background: COLORS.goldLight,
+      border: `2px solid ${COLORS.goldBorder}`,
+      borderRadius: '12px',
+      padding: '20px',
+      marginTop: '20px',
+      marginBottom: '20px',
+    }}>
+      <div style={{
+        display: 'flex',
+        gap: '12px',
+        alignItems: 'flex-start',
+      }}>
+        {icon || <LucideIcon name="Lightbulb" size={24} color={COLORS.gold} style={{ flexShrink: 0, marginTop: '2px' }} />}
+        <div style={{
+          fontSize: '16px',
+          lineHeight: '1.6',
+          color: COLORS.textPrimary,
+        }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Recap Visual (shows compounding/discounting from 02B) ---
+const RecapVisual = ({ showDiscounting = false }) => {
+  const values = [
+    { time: 0, value: CONSTANTS.PV, label: 'Time 0' },
+    { time: 1, value: CONSTANTS.PERIOD_1_VALUE, label: 'Time 1' },
+    { time: 2, value: CONSTANTS.PERIOD_2_VALUE, label: 'Time 2' },
+    { time: 3, value: CONSTANTS.FV, label: 'Time 3' },
+  ];
+  
+  return (
+    <div style={{
+      background: COLORS.surfaceAlt,
+      borderRadius: '12px',
+      padding: '24px',
+      marginTop: '16px',
+      overflowX: 'auto',
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        minWidth: 'fit-content',
+      }}>
+        {values.map((item, i) => (
+          <React.Fragment key={i}>
+            {/* Value box */}
+            <div style={{
+              background: i === 0 ? COLORS.goldLight : (i === 3 ? COLORS.accentLight : 'white'),
+              border: `2px solid ${i === 0 ? COLORS.goldBorder : (i === 3 ? COLORS.accent : COLORS.border)}`,
+              borderRadius: '10px',
+              padding: '12px 16px',
+              textAlign: 'center',
+              minWidth: '85px',
+            }}>
+              <div style={{ 
+                fontFamily: 'monospace', 
+                fontSize: '15px', 
+                fontWeight: '600',
+                color: COLORS.textPrimary,
+              }}>
+                {formatCurrency(item.value)}
+              </div>
+              <div style={{ 
+                fontSize: '12px', 
+                color: COLORS.textSecondary,
+                marginTop: '4px' 
+              }}>
+                {item.label}
+              </div>
+            </div>
+            
+            {/* Arrow between values */}
+            {i < values.length - 1 && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                padding: '0 4px',
+              }}>
+                {showDiscounting ? (
+                  <>
+                    <LucideIcon name="ArrowLeft" size={18} color={COLORS.accent} />
+                    <span style={{ fontSize: '11px', color: COLORS.accent, marginTop: '2px' }}>
+                      ÷1.06
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: '11px', color: COLORS.success, marginBottom: '2px' }}>
+                      ×1.06
+                    </span>
+                    <LucideIcon name="ArrowRight" size={18} color={COLORS.success} />
+                  </>
+                )}
+              </div>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+      
+      {/* Legend */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        gap: '24px',
+        marginTop: '16px',
+        fontSize: '13px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <LucideIcon name="ArrowRight" size={14} color={COLORS.success} />
+          <span style={{ color: COLORS.textSecondary }}>Compounding (×1.06)</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <LucideIcon name="ArrowLeft" size={14} color={COLORS.accent} />
+          <span style={{ color: COLORS.textSecondary }}>Discounting (÷1.06)</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Rabbit Hole Button ---
+const RabbitHoleButton = ({ 
+  rabbitHole, 
+  explored, 
+  onClick,
+  soundEnabled 
+}) => {
+  const handleClick = () => {
+    if (soundEnabled) playSound('rabbitHole');
+    onClick();
+  };
+  
+  return (
+    <button
+      onClick={handleClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        width: '100%',
+        padding: '14px 16px',
+        border: `2px dashed ${COLORS.rabbitHoleBorder}`,
+        borderRadius: '10px',
+        background: explored ? COLORS.rabbitHoleLight : 'white',
+        color: COLORS.rabbitHole,
+        cursor: 'pointer',
+        fontSize: '14px',
+        textAlign: 'left',
+        marginTop: '16px',
+        transition: 'all 0.2s ease',
+      }}
+    >
+      <LucideIcon name="Rabbit" size={20} style={{ flexShrink: 0 }} />
+      <span style={{ flex: 1 }}>{rabbitHole.title}</span>
+      {explored && <LucideIcon name="Check" size={18} />}
+    </button>
+  );
+};
+
+// --- Rabbit Hole Modal ---
+const RabbitHoleModal = ({ rabbitHole, onClose }) => {
+  if (!rabbitHole) return null;
+  
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px',
+      zIndex: 1000,
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '16px',
+        maxWidth: '600px',
+        maxHeight: '80vh',
+        overflow: 'auto',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+      }}>
+        {/* Header */}
+        <div style={{
+          background: COLORS.rabbitHole,
+          color: 'white',
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+        }}>
+          <LucideIcon name="Rabbit" size={24} />
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600' }}>
+            {rabbitHole.title}
+          </h2>
+        </div>
+        
+        {/* Content */}
+        <div style={{
+          padding: '24px',
+          fontSize: '15px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          {rabbitHole.content.split('\n\n').map((paragraph, i) => (
+            <p key={i} style={{ margin: i === 0 ? 0 : '16px 0 0 0' }}>
+              {paragraph}
+            </p>
+          ))}
+        </div>
+        
+        {/* Footer */}
+        <div style={{
+          padding: '16px 24px',
+          borderTop: `1px solid ${COLORS.border}`,
+          display: 'flex',
+          justifyContent: 'flex-end',
+        }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '10px 24px',
+              border: 'none',
+              borderRadius: '8px',
+              background: COLORS.rabbitHole,
+              color: 'white',
+              fontSize: '15px',
+              fontWeight: '500',
+              cursor: 'pointer',
+            }}
+          >
+            Back to Tutorial
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Glossary Modal ---
+const GlossaryModal = ({ onClose }) => (
+  <div style={{
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '20px',
+    zIndex: 1000,
+  }}>
+    <div style={{
+      background: 'white',
+      borderRadius: '16px',
+      maxWidth: '600px',
+      maxHeight: '80vh',
+      overflow: 'auto',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+    }}>
+      {/* Header */}
+      <div style={{
+        background: COLORS.primary,
+        color: 'white',
+        padding: '20px 24px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+      }}>
+        <LucideIcon name="BookOpen" size={24} />
+        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600' }}>
+          Glossary
+        </h2>
+      </div>
+      
+      {/* Terms */}
+      <div style={{ padding: '16px 24px' }}>
+        {Object.values(GLOSSARY).map((item, i) => (
+          <div key={item.term} style={{
+            padding: '16px 0',
+            borderBottom: i < Object.values(GLOSSARY).length - 1 ? `1px solid ${COLORS.border}` : 'none',
+          }}>
+            <h3 style={{
+              margin: '0 0 6px 0',
+              fontSize: '16px',
+              fontWeight: '600',
+              color: COLORS.primary,
+            }}>
+              {item.term}
+            </h3>
+            <p style={{
+              margin: 0,
+              fontSize: '14px',
+              lineHeight: '1.5',
+              color: COLORS.textSecondary,
+            }}>
+              {item.definition}
+            </p>
+          </div>
+        ))}
+      </div>
+      
+      {/* Footer */}
+      <div style={{
+        padding: '16px 24px',
+        borderTop: `1px solid ${COLORS.border}`,
+        display: 'flex',
+        justifyContent: 'flex-end',
+      }}>
+        <button
+          onClick={onClose}
+          style={{
+            padding: '10px 24px',
+            border: 'none',
+            borderRadius: '8px',
+            background: COLORS.primary,
+            color: 'white',
+            fontSize: '15px',
+            fontWeight: '500',
+            cursor: 'pointer',
+          }}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// --- Restart Confirm Modal ---
+const RestartConfirmModal = ({ onConfirm, onCancel }) => (
+  <div style={{
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '20px',
+    zIndex: 1000,
+  }}>
+    <div style={{
+      background: 'white',
+      borderRadius: '16px',
+      maxWidth: '400px',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+      overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        background: COLORS.warning,
+        color: 'white',
+        padding: '20px 24px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+      }}>
+        <LucideIcon name="RotateCcw" size={24} />
+        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600' }}>
+          Restart Tutorial?
+        </h2>
+      </div>
+      
+      {/* Content */}
+      <div style={{ padding: '24px' }}>
+        <p style={{
+          margin: 0,
+          fontSize: '15px',
+          lineHeight: '1.6',
+          color: COLORS.textPrimary,
+        }}>
+          Are you sure you want to restart? All your progress will be lost, including any rabbit holes you've explored.
+        </p>
+      </div>
+      
+      {/* Footer */}
+      <div style={{
+        padding: '16px 24px',
+        borderTop: `1px solid ${COLORS.border}`,
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '12px',
+      }}>
+        <button
+          onClick={onCancel}
+          style={{
+            padding: '10px 20px',
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: '8px',
+            background: 'white',
+            color: COLORS.textPrimary,
+            fontSize: '15px',
+            cursor: 'pointer',
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          style={{
+            padding: '10px 20px',
+            border: 'none',
+            borderRadius: '8px',
+            background: COLORS.warning,
+            color: 'white',
+            fontSize: '15px',
+            fontWeight: '500',
+            cursor: 'pointer',
+          }}
+        >
+          Restart
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// --- Dev Mode Panel ---
+const DevModePanel = ({ onJumpToPart, currentPartIndex, onClose }) => (
+  <div style={{
+    position: 'fixed',
+    bottom: '20px',
+    right: '20px',
+    background: 'white',
+    border: `2px solid ${COLORS.warning}`,
+    borderRadius: '12px',
+    padding: '16px',
+    boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+    zIndex: 999,
+    maxHeight: '400px',
+    overflow: 'auto',
+  }}>
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '12px',
+    }}>
+      <h3 style={{ 
+        margin: 0, 
+        fontSize: '14px', 
+        color: COLORS.warning,
+        fontWeight: '600',
+      }}>
+        🛠 Dev Mode
+      </h3>
+      <button
+        onClick={onClose}
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          color: COLORS.textMuted,
+        }}
+      >
+        <LucideIcon name="X" size={18} />
+      </button>
+    </div>
+    
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {PARTS.map((part, index) => (
+        <button
+          key={part.id}
+          onClick={() => onJumpToPart(index)}
+          style={{
+            padding: '8px 12px',
+            border: `1px solid ${index === currentPartIndex ? COLORS.warning : COLORS.border}`,
+            borderRadius: '6px',
+            background: index === currentPartIndex ? COLORS.warningBg : 'white',
+            color: COLORS.textPrimary,
+            fontSize: '13px',
+            textAlign: 'left',
+            cursor: 'pointer',
+          }}
+        >
+          {index + 1}. {part.title}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+// ============================================================================
+// PART RENDERERS
+// ============================================================================
+
+// --- Part 0: Quick Recap ---
+const RecapPart = ({ 
+  currentStep, 
+  onStepComplete, 
+  soundEnabled,
+  onContinue,
+  onBack,
+  canGoBack 
+}) => {
+  const [recapAcknowledged, setRecapAcknowledged] = useState(false);
+  
+  return (
+    <div>
+      <h2 style={{
+        margin: '0 0 8px 0',
+        color: COLORS.primary,
+        fontSize: '24px',
+      }}>
+        Quick Recap
+      </h2>
+      
+      <p style={{
+        color: COLORS.textSecondary,
+        fontSize: '15px',
+        marginBottom: '24px',
+      }}>
+        Let's remind ourselves what we discovered in the last tutorial.
+      </p>
+      
+      <p style={{
+        fontSize: '16px',
+        lineHeight: '1.7',
+        color: COLORS.textPrimary,
+      }}>
+        In Tutorial 2B, we discovered that when everyone has access to the same borrowing 
+        and lending opportunities, we can finally <strong>measure value objectively</strong>.
+      </p>
+      
+      <p style={{
+        fontSize: '16px',
+        lineHeight: '1.7',
+        color: COLORS.textPrimary,
+        marginTop: '16px',
+      }}>
+        We learned to <strong>walk forward</strong> on the timeline (multiplying by 1.06 each period) 
+        and <strong>walk backward</strong> (dividing by 1.06 each period):
+      </p>
+      
+      <RecapVisual />
+      
+      <p style={{
+        fontSize: '16px',
+        lineHeight: '1.7',
+        color: COLORS.textPrimary,
+        marginTop: '20px',
+      }}>
+        Because we can transform {formatCurrency(CONSTANTS.PV)} today into {formatCurrency(CONSTANTS.FV)} in 
+        3 periods (and vice versa), these two streams have <strong>the same value</strong>.
+      </p>
+      
+      <InsightBox soundEnabled={soundEnabled}>
+        <strong>The key insight:</strong> At 6% per period, {formatCurrency(CONSTANTS.PV)} today 
+        and {formatCurrency(CONSTANTS.FV)} in 3 periods are worth exactly the same — because 
+        you can convert one into the other using the market.
+      </InsightBox>
+      
+      <p style={{
+        fontSize: '16px',
+        lineHeight: '1.7',
+        color: COLORS.textPrimary,
+        marginTop: '16px',
+      }}>
+        Now it's time to <strong>name</strong> what we've been doing — and practice with 
+        more complex cash flow streams.
+      </p>
+      
+      <NavButtons
+        onBack={onBack}
+        onContinue={() => {
+          onStepComplete();
+          onContinue();
+        }}
+        canGoBack={canGoBack}
+        canContinue={true}
+        soundEnabled={soundEnabled}
+      />
+    </div>
+  );
+};
+
+// --- Part 1: Vocabulary ---
+const VocabularyPart = ({ 
+  currentStep, 
+  onStepComplete,
+  isStepComplete,
+  soundEnabled,
+  onContinue,
+  onBack,
+  canGoBack,
+  onRabbitHoleClick,
+  exploredRabbitHoles
+}) => {
+  const [choices, setChoices] = useState({});
+  const [revealed, setRevealed] = useState({});
+  
+  const handleChoice = (stepKey, choice) => {
+    setChoices(prev => ({ ...prev, [stepKey]: choice }));
+  };
+  
+  const handleReveal = (stepKey) => {
+    setRevealed(prev => ({ ...prev, [stepKey]: true }));
+    if (!isStepComplete(stepKey)) {
+      onStepComplete(stepKey);
+    }
+  };
+  
+  // Step 0: Discounting
+  if (currentStep === 0) {
+    const stepKey = 'vocab-discounting';
+    const hasChosen = choices[stepKey] !== undefined;
+    const isRevealed = revealed[stepKey];
+    
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          Naming the Operations
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 1 of 4: What do we call "walking backward"?
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          When we take a future amount and divide by (1 + r) to find what it's worth today, 
+          we're "walking backward" on the timeline.
+        </p>
+        
+        <div style={{
+          background: COLORS.surfaceAlt,
+          borderRadius: '12px',
+          padding: '20px',
+          marginTop: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '16px',
+        }}>
+          <div style={{
+            background: COLORS.goldLight,
+            border: `2px solid ${COLORS.goldBorder}`,
+            borderRadius: '8px',
+            padding: '12px 16px',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontFamily: 'monospace', fontWeight: '600' }}>?</div>
+            <div style={{ fontSize: '12px', color: COLORS.textSecondary }}>Today</div>
+          </div>
+          
+          <LucideIcon name="ArrowLeft" size={24} color={COLORS.accent} />
+          <span style={{ fontSize: '14px', color: COLORS.accent }}>÷ 1.06</span>
+          <LucideIcon name="ArrowLeft" size={24} color={COLORS.accent} />
+          
+          <div style={{
+            background: 'white',
+            border: `2px solid ${COLORS.border}`,
+            borderRadius: '8px',
+            padding: '12px 16px',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontFamily: 'monospace', fontWeight: '600' }}>{formatCurrency(100)}</div>
+            <div style={{ fontSize: '12px', color: COLORS.textSecondary }}>Future</div>
+          </div>
+        </div>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          marginTop: '20px',
+        }}>
+          If you had to give this operation a name, what would you call it?
+        </p>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
+          {['Reducing', 'Discounting', 'Subtracting'].map((option) => (
+            <button
+              key={option}
+              onClick={() => !isRevealed && handleChoice(stepKey, option)}
+              disabled={isRevealed}
+              style={{
+                padding: '14px 16px',
+                border: `2px solid ${
+                  isRevealed && option === 'Discounting' ? COLORS.successBorder :
+                  choices[stepKey] === option ? COLORS.accent : COLORS.border
+                }`,
+                borderRadius: '10px',
+                background: isRevealed && option === 'Discounting' ? COLORS.successBg :
+                  choices[stepKey] === option ? COLORS.accentLight : 'white',
+                color: COLORS.textPrimary,
+                fontSize: '15px',
+                textAlign: 'left',
+                cursor: isRevealed ? 'default' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+              }}
+            >
+              {isRevealed && option === 'Discounting' && <LucideIcon name="Check" size={20} color={COLORS.success} />}
+              {option}
+            </button>
+          ))}
+        </div>
+        
+        {hasChosen && !isRevealed && (
+          <button
+            onClick={() => handleReveal(stepKey)}
+            style={{
+              marginTop: '16px',
+              padding: '12px 24px',
+              border: 'none',
+              borderRadius: '8px',
+              background: COLORS.primary,
+              color: 'white',
+              fontSize: '15px',
+              fontWeight: '500',
+              cursor: 'pointer',
+            }}
+          >
+            See the answer
+          </button>
+        )}
+        
+        {isRevealed && (
+          <>
+            <div style={{
+              marginTop: '20px',
+              padding: '20px',
+              background: 'white',
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '12px',
+            }}>
+              <p style={{
+                margin: 0,
+                fontSize: '16px',
+                lineHeight: '1.7',
+                color: COLORS.textPrimary,
+              }}>
+                This operation is called <strong>discounting</strong>. When we find the present 
+                value of a future amount, we're "discounting" it back to today.
+              </p>
+              <p style={{
+                margin: '12px 0 0 0',
+                fontSize: '15px',
+                lineHeight: '1.6',
+                color: COLORS.textSecondary,
+              }}>
+                The word makes sense: the present value is always <em>less than</em> the 
+                future value (at positive interest rates), so we're applying a "discount."
+              </p>
+            </div>
+            
+            <RabbitHoleButton
+              rabbitHole={RABBIT_HOLES.whyDiscount}
+              explored={exploredRabbitHoles.includes('whyDiscount')}
+              onClick={() => onRabbitHoleClick('whyDiscount')}
+              soundEnabled={soundEnabled}
+            />
+          </>
+        )}
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          canGoBack={canGoBack}
+          canContinue={isRevealed}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  // Step 1: Compounding
+  if (currentStep === 1) {
+    const stepKey = 'vocab-compounding';
+    const hasChosen = choices[stepKey] !== undefined;
+    const isRevealed = revealed[stepKey];
+    
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          Naming the Operations
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 2 of 4: What do we call "walking forward"?
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          Now the opposite direction: when we take a present amount and multiply by (1 + r) 
+          to find what it becomes in the future, we're "walking forward."
+        </p>
+        
+        <div style={{
+          background: COLORS.surfaceAlt,
+          borderRadius: '12px',
+          padding: '20px',
+          marginTop: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '16px',
+        }}>
+          <div style={{
+            background: 'white',
+            border: `2px solid ${COLORS.border}`,
+            borderRadius: '8px',
+            padding: '12px 16px',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontFamily: 'monospace', fontWeight: '600' }}>{formatCurrency(CONSTANTS.PV)}</div>
+            <div style={{ fontSize: '12px', color: COLORS.textSecondary }}>Today</div>
+          </div>
+          
+          <span style={{ fontSize: '14px', color: COLORS.success }}>× 1.06</span>
+          <LucideIcon name="ArrowRight" size={24} color={COLORS.success} />
+          <span style={{ fontSize: '14px', color: COLORS.success }}>× 1.06</span>
+          <LucideIcon name="ArrowRight" size={24} color={COLORS.success} />
+          
+          <div style={{
+            background: COLORS.goldLight,
+            border: `2px solid ${COLORS.goldBorder}`,
+            borderRadius: '8px',
+            padding: '12px 16px',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontFamily: 'monospace', fontWeight: '600' }}>?</div>
+            <div style={{ fontSize: '12px', color: COLORS.textSecondary }}>Future</div>
+          </div>
+        </div>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          marginTop: '20px',
+        }}>
+          What's the standard term for this operation?
+        </p>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
+          {['Growing', 'Compounding', 'Adding'].map((option) => (
+            <button
+              key={option}
+              onClick={() => !isRevealed && handleChoice(stepKey, option)}
+              disabled={isRevealed}
+              style={{
+                padding: '14px 16px',
+                border: `2px solid ${
+                  isRevealed && option === 'Compounding' ? COLORS.successBorder :
+                  choices[stepKey] === option ? COLORS.accent : COLORS.border
+                }`,
+                borderRadius: '10px',
+                background: isRevealed && option === 'Compounding' ? COLORS.successBg :
+                  choices[stepKey] === option ? COLORS.accentLight : 'white',
+                color: COLORS.textPrimary,
+                fontSize: '15px',
+                textAlign: 'left',
+                cursor: isRevealed ? 'default' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+              }}
+            >
+              {isRevealed && option === 'Compounding' && <LucideIcon name="Check" size={20} color={COLORS.success} />}
+              {option}
+            </button>
+          ))}
+        </div>
+        
+        {hasChosen && !isRevealed && (
+          <button
+            onClick={() => handleReveal(stepKey)}
+            style={{
+              marginTop: '16px',
+              padding: '12px 24px',
+              border: 'none',
+              borderRadius: '8px',
+              background: COLORS.primary,
+              color: 'white',
+              fontSize: '15px',
+              fontWeight: '500',
+              cursor: 'pointer',
+            }}
+          >
+            See the answer
+          </button>
+        )}
+        
+        {isRevealed && (
+          <div style={{
+            marginTop: '20px',
+            padding: '20px',
+            background: 'white',
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: '12px',
+          }}>
+            <p style={{
+              margin: 0,
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+            }}>
+              This is called <strong>compounding</strong>. The word comes from the Latin 
+              "componere" — to put together.
+            </p>
+            <p style={{
+              margin: '12px 0 0 0',
+              fontSize: '15px',
+              lineHeight: '1.6',
+              color: COLORS.textSecondary,
+            }}>
+              Each period, you earn interest not just on your original amount, but also on 
+              the interest you've already earned. The interest "compounds" — it builds on itself.
+            </p>
+          </div>
+        )}
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          canGoBack={canGoBack}
+          canContinue={isRevealed}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  // Step 2: Present Value & Future Value
+  if (currentStep === 2) {
+    const stepKey = 'vocab-pv-fv';
+    const isRevealed = revealed[stepKey] || isStepComplete(stepKey);
+    
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          Naming the Values
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 3 of 4: What do we call these amounts?
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          We've been working with two key amounts:
+        </p>
+        
+        <div style={{
+          display: 'flex',
+          gap: '16px',
+          marginTop: '16px',
+        }}>
+          <div style={{
+            flex: 1,
+            background: COLORS.goldLight,
+            border: `2px solid ${COLORS.goldBorder}`,
+            borderRadius: '12px',
+            padding: '20px',
+            textAlign: 'center',
+          }}>
+            <div style={{ 
+              fontFamily: 'monospace', 
+              fontSize: '24px', 
+              fontWeight: '700',
+              color: COLORS.textPrimary,
+            }}>
+              {formatCurrency(CONSTANTS.PV)}
+            </div>
+            <div style={{ 
+              fontSize: '14px', 
+              color: COLORS.textSecondary,
+              marginTop: '8px',
+            }}>
+              The value <strong>today</strong>
+            </div>
+          </div>
+          
+          <div style={{
+            flex: 1,
+            background: COLORS.accentLight,
+            border: `2px solid ${COLORS.accent}`,
+            borderRadius: '12px',
+            padding: '20px',
+            textAlign: 'center',
+          }}>
+            <div style={{ 
+              fontFamily: 'monospace', 
+              fontSize: '24px', 
+              fontWeight: '700',
+              color: COLORS.textPrimary,
+            }}>
+              {formatCurrency(CONSTANTS.FV)}
+            </div>
+            <div style={{ 
+              fontSize: '14px', 
+              color: COLORS.textSecondary,
+              marginTop: '8px',
+            }}>
+              The value <strong>in the future</strong>
+            </div>
+          </div>
+        </div>
+        
+        {!isRevealed && (
+          <button
+            onClick={() => handleReveal(stepKey)}
+            style={{
+              marginTop: '24px',
+              padding: '12px 24px',
+              border: 'none',
+              borderRadius: '8px',
+              background: COLORS.primary,
+              color: 'white',
+              fontSize: '15px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              display: 'block',
+              width: '100%',
+            }}
+          >
+            Reveal the terminology
+          </button>
+        )}
+        
+        {isRevealed && (
+          <div style={{
+            marginTop: '24px',
+            padding: '20px',
+            background: 'white',
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: '12px',
+          }}>
+            <p style={{
+              margin: 0,
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+            }}>
+              These have straightforward names:
+            </p>
+            
+            <ul style={{
+              margin: '16px 0 0 0',
+              paddingLeft: '20px',
+              fontSize: '16px',
+              lineHeight: '1.8',
+              color: COLORS.textPrimary,
+            }}>
+              <li>
+                <strong>Present Value (PV)</strong> — the value today ({formatCurrency(CONSTANTS.PV)} in our example)
+              </li>
+              <li style={{ marginTop: '8px' }}>
+                <strong>Future Value (FV)</strong> — the value at a future date ({formatCurrency(CONSTANTS.FV)} in our example)
+              </li>
+            </ul>
+            
+            <p style={{
+              margin: '16px 0 0 0',
+              fontSize: '15px',
+              lineHeight: '1.6',
+              color: COLORS.textSecondary,
+            }}>
+              You'll often see these abbreviated as <strong>PV</strong> and <strong>FV</strong> in 
+              formulas and spreadsheets.
+            </p>
+          </div>
+        )}
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          canGoBack={canGoBack}
+          canContinue={isRevealed}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  // Step 3: Discount Rate + Summary
+  if (currentStep === 3) {
+    const stepKey = 'vocab-discount-rate';
+    const isRevealed = revealed[stepKey] || isStepComplete(stepKey);
+    
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          One More Term
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 4 of 4: Interest rates and discount rates
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          We've been using 6% per period as our <strong>interest rate</strong> — the market 
+          price for borrowing or lending money through time.
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          marginTop: '16px',
+        }}>
+          When we use this rate to find present values (discounting), it has a special name.
+        </p>
+        
+        {!isRevealed && (
+          <button
+            onClick={() => handleReveal(stepKey)}
+            style={{
+              marginTop: '20px',
+              padding: '12px 24px',
+              border: 'none',
+              borderRadius: '8px',
+              background: COLORS.primary,
+              color: 'white',
+              fontSize: '15px',
+              fontWeight: '500',
+              cursor: 'pointer',
+            }}
+          >
+            Reveal the term
+          </button>
+        )}
+        
+        {isRevealed && (
+          <>
+            <div style={{
+              marginTop: '20px',
+              padding: '20px',
+              background: 'white',
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '12px',
+            }}>
+              <p style={{
+                margin: 0,
+                fontSize: '16px',
+                lineHeight: '1.7',
+                color: COLORS.textPrimary,
+              }}>
+                When used for discounting, we call it the <strong>discount rate</strong>.
+              </p>
+              <p style={{
+                margin: '12px 0 0 0',
+                fontSize: '15px',
+                lineHeight: '1.6',
+                color: COLORS.textSecondary,
+              }}>
+                There's no special name when going forward — we just call it the interest rate. 
+                But when finding present values, "discount rate" emphasizes that we're 
+                discounting future cash flows back to today.
+              </p>
+              <p style={{
+                margin: '12px 0 0 0',
+                fontSize: '15px',
+                lineHeight: '1.6',
+                color: COLORS.textSecondary,
+              }}>
+                The discount rate reflects your <em>opportunity cost</em> — what return 
+                you could earn by investing elsewhere. If you could earn 6% in the market, 
+                then 6% is the appropriate discount rate.
+              </p>
+            </div>
+            
+            <InsightBox soundEnabled={soundEnabled}>
+              <strong>Vocabulary Summary:</strong>
+              <ul style={{ margin: '12px 0 0 0', paddingLeft: '20px', lineHeight: '1.8' }}>
+                <li><strong>Interest rate</strong> — the market price of money through time (6% in our examples)</li>
+                <li><strong>Discount rate</strong> — the interest rate when used for finding present values</li>
+                <li><strong>Discounting</strong> — walking backward (÷ 1.06)</li>
+                <li><strong>Compounding</strong> — walking forward (× 1.06)</li>
+                <li><strong>Present Value (PV)</strong> — value today</li>
+                <li><strong>Future Value (FV)</strong> — value later</li>
+              </ul>
+            </InsightBox>
+            
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginTop: '16px',
+            }}>
+              Now that we have the vocabulary, let's practice with some different 
+              types of cash flow streams.
+            </p>
+          </>
+        )}
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          canGoBack={canGoBack}
+          canContinue={isRevealed}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  return null;
+};
+
+// --- Annuity Timeline Visual ---
+const AnnuityTimelineVisual = ({ 
+  payments, 
+  pvValues, 
+  revealedSteps = 0,
+  showTotal = false,
+  totalPV = 0,
+  highlightVerification = false
+}) => {
+  return (
+    <div style={{
+      background: COLORS.surfaceAlt,
+      borderRadius: '12px',
+      padding: '24px',
+      marginTop: '16px',
+      overflowX: 'auto',
+    }}>
+      {/* Timeline with payments */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        gap: '12px',
+        minWidth: 'fit-content',
+        position: 'relative',
+      }}>
+        {/* Time 0 - PV destination */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          minWidth: '90px',
+        }}>
+          <div style={{
+            background: showTotal ? COLORS.goldLight : 'white',
+            border: `2px solid ${showTotal ? COLORS.goldBorder : COLORS.border}`,
+            borderRadius: '10px',
+            padding: '12px 16px',
+            textAlign: 'center',
+            marginBottom: '8px',
+            boxShadow: showTotal ? '0 2px 8px rgba(202, 138, 4, 0.2)' : 'none',
+          }}>
+            <div style={{ 
+              fontFamily: 'monospace', 
+              fontSize: '15px', 
+              fontWeight: '600',
+              color: COLORS.textPrimary,
+            }}>
+              {showTotal ? formatCurrency(totalPV) : 'PV = ?'}
+            </div>
+            <div style={{ fontSize: '11px', color: COLORS.textSecondary, marginTop: '2px' }}>
+              Time 0
+            </div>
+          </div>
+          
+          {/* Stacked PV components */}
+          {revealedSteps > 0 && (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+              marginTop: '4px',
+            }}>
+              {pvValues.slice(0, revealedSteps).map((pv, i) => (
+                <div key={i} style={{
+                  background: COLORS.accentLight,
+                  border: `1px solid ${COLORS.accent}`,
+                  borderRadius: '6px',
+                  padding: '4px 8px',
+                  fontSize: '12px',
+                  fontFamily: 'monospace',
+                  color: COLORS.accent,
+                }}>
+                  {formatCurrency(pv)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {/* Arrows and payments for each period */}
+        {payments.map((payment, i) => (
+          <React.Fragment key={i}>
+            {/* Arrow pointing left (discounting) */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 4px',
+              opacity: revealedSteps > i ? 1 : 0.3,
+            }}>
+              <LucideIcon name="ArrowLeft" size={18} color={COLORS.accent} />
+              <span style={{ 
+                fontSize: '10px', 
+                color: COLORS.accent,
+                marginTop: '2px',
+              }}>
+                ÷1.06{i > 0 ? `^${i + 1}` : ''}
+              </span>
+            </div>
+            
+            {/* Payment at this time */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              minWidth: '80px',
+            }}>
+              <div style={{
+                background: revealedSteps > i ? COLORS.successBg : 'white',
+                border: `2px solid ${revealedSteps > i ? COLORS.successBorder : COLORS.border}`,
+                borderRadius: '10px',
+                padding: '12px 14px',
+                textAlign: 'center',
+              }}>
+                <div style={{ 
+                  fontFamily: 'monospace', 
+                  fontSize: '15px', 
+                  fontWeight: '600',
+                  color: COLORS.textPrimary,
+                }}>
+                  {formatCurrency(payment)}
+                </div>
+                <div style={{ fontSize: '11px', color: COLORS.textSecondary, marginTop: '2px' }}>
+                  Time {i + 1}
+                </div>
+              </div>
+            </div>
+          </React.Fragment>
+        ))}
+      </div>
+      
+      {/* Verification highlight */}
+      {highlightVerification && showTotal && (
+        <div style={{
+          marginTop: '16px',
+          padding: '12px 16px',
+          background: COLORS.goldLight,
+          border: `2px solid ${COLORS.goldBorder}`,
+          borderRadius: '8px',
+          textAlign: 'center',
+        }}>
+          <span style={{ fontSize: '15px', color: COLORS.textPrimary }}>
+            Total PV = <strong>{formatCurrency(totalPV)}</strong>
+            {Math.abs(totalPV - CONSTANTS.PV) < 0.01 && (
+              <span style={{ marginLeft: '8px', color: COLORS.success }}>
+                ✓ Same as Stream A!
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- Part 2: The Annuity Stream ---
+const AnnuityPart = ({ 
+  currentStep, 
+  onStepComplete,
+  isStepComplete,
+  soundEnabled,
+  onContinue,
+  onBack,
+  canGoBack,
+  onRabbitHoleClick,
+  exploredRabbitHoles
+}) => {
+  const [calculations, setCalculations] = useState({});
+  const [completed, setCompleted] = useState({});
+  const [showVerification, setShowVerification] = useState(false);
+  const [verifyComplete, setVerifyComplete] = useState(false);
+  
+  const markCalcComplete = (key) => {
+    setCompleted(prev => ({ ...prev, [key]: true }));
+  };
+  
+  const isCalcComplete = (key) => completed[key] === true;
+  
+  const simpleAnnuity = CONSTANTS.SIMPLE_ANNUITY;
+  const verifyAnnuity = CONSTANTS.VERIFICATION_ANNUITY;
+  
+  // Step 0: Introduce the pattern
+  if (currentStep === 0) {
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          The Annuity Stream
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 1 of 5: A special pattern
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          So far we've worked with single lump sums — {formatCurrency(CONSTANTS.PV)} today 
+          or {formatCurrency(CONSTANTS.FV)} in 3 periods. But what about streams with 
+          <strong> multiple payments</strong>?
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          marginTop: '16px',
+        }}>
+          Let's start with a special case: a stream that pays <strong>the same amount</strong> every 
+          period. This pattern is so common it has a name: an <strong>annuity</strong>.
+        </p>
+        
+        <div style={{
+          background: COLORS.surfaceAlt,
+          borderRadius: '12px',
+          padding: '24px',
+          marginTop: '20px',
+          textAlign: 'center',
+        }}>
+          <p style={{ 
+            margin: '0 0 16px 0', 
+            fontSize: '15px', 
+            color: COLORS.textSecondary 
+          }}>
+            Example: Receive $10 at the end of each period for 3 periods
+          </p>
+          
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '24px',
+          }}>
+            {[1, 2, 3].map((period) => (
+              <div key={period} style={{
+                background: 'white',
+                border: `2px solid ${COLORS.successBorder}`,
+                borderRadius: '10px',
+                padding: '16px 20px',
+                textAlign: 'center',
+              }}>
+                <div style={{ 
+                  fontFamily: 'monospace', 
+                  fontSize: '20px', 
+                  fontWeight: '700',
+                  color: COLORS.success,
+                }}>
+                  $10
+                </div>
+                <div style={{ fontSize: '13px', color: COLORS.textSecondary, marginTop: '4px' }}>
+                  Time {period}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          marginTop: '20px',
+        }}>
+          To find the present value of this stream, we need to discount <em>each</em> payment 
+          back to Time 0, then add them up.
+        </p>
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={() => {
+            onStepComplete('annuity-intro');
+            onContinue();
+          }}
+          canGoBack={canGoBack}
+          canContinue={true}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  // Step 1: Calculate PV of first $10
+  if (currentStep === 1) {
+    const calcKey = 'annuity-pv1';
+    
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          Discounting Each Payment
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 2 of 5: The first payment
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          The first $10 arrives at Time 1 — just one period away. To find its present value, 
+          we discount it once.
+        </p>
+        
+        <AnnuityTimelineVisual
+          payments={[10, 10, 10]}
+          pvValues={[simpleAnnuity.pv1, simpleAnnuity.pv2, simpleAnnuity.pv3]}
+          revealedSteps={isCalcComplete(calcKey) ? 1 : 0}
+        />
+        
+        <CalculationBox
+          key={calcKey}
+          prompt="What is $10 ÷ 1.06? (Present value of the first payment)"
+          correctAnswer={simpleAnnuity.pv1}
+          hint1="Divide 10 by 1.06"
+          hint2="10 ÷ 1.06 = 9.4339..."
+          tolerance={CONSTANTS.TOLERANCE}
+          onCorrect={() => {
+            markCalcComplete(calcKey);
+            onStepComplete(calcKey);
+          }}
+          soundEnabled={soundEnabled}
+        />
+        
+        {isCalcComplete(calcKey) && (
+          <p style={{
+            fontSize: '15px',
+            lineHeight: '1.6',
+            color: COLORS.textSecondary,
+            marginTop: '16px',
+          }}>
+            The first $10, discounted one period, is worth <strong>{formatCurrency(simpleAnnuity.pv1)}</strong> today.
+          </p>
+        )}
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          canGoBack={canGoBack}
+          canContinue={isCalcComplete(calcKey)}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  // Step 2: Calculate PV of second and third $10
+  if (currentStep === 2) {
+    const calcKey2 = 'annuity-pv2';
+    const calcKey3 = 'annuity-pv3';
+    const allComplete = isCalcComplete(calcKey2) && isCalcComplete(calcKey3);
+    
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          The Remaining Payments
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 3 of 5: Payments at Time 2 and Time 3
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          Now let's discount the other two payments. The $10 at Time 2 needs to be 
+          discounted <strong>twice</strong> (divided by 1.06²), and the $10 at Time 3 
+          needs to be discounted <strong>three times</strong> (divided by 1.06³).
+        </p>
+        
+        <AnnuityTimelineVisual
+          payments={[10, 10, 10]}
+          pvValues={[simpleAnnuity.pv1, simpleAnnuity.pv2, simpleAnnuity.pv3]}
+          revealedSteps={1 + (isCalcComplete(calcKey2) ? 1 : 0) + (isCalcComplete(calcKey3) ? 1 : 0)}
+        />
+        
+        {/* Show completed PV1 from previous step */}
+        <div style={{
+          background: COLORS.successBg,
+          border: `1px solid ${COLORS.successBorder}`,
+          borderRadius: '12px',
+          padding: '16px 20px',
+          marginTop: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+        }}>
+          <LucideIcon name="Check" size={20} color={COLORS.success} />
+          <div>
+            <div style={{ fontSize: '14px', color: COLORS.textSecondary }}>
+              Time 1 payment: $10 ÷ 1.06
+            </div>
+            <div style={{ fontSize: '16px', fontWeight: '600', fontFamily: 'monospace', color: COLORS.textPrimary }}>
+              PV = {formatCurrency(simpleAnnuity.pv1)}
+            </div>
+          </div>
+        </div>
+        
+        <CalculationBox
+          key={calcKey2}
+          prompt="What is $10 ÷ 1.06² = $10 ÷ 1.1236? (Time 2 payment)"
+          correctAnswer={simpleAnnuity.pv2}
+          hint1="Divide 10 by 1.1236"
+          hint2="10 ÷ 1.1236 = 8.899..."
+          tolerance={CONSTANTS.TOLERANCE}
+          onCorrect={() => {
+            markCalcComplete(calcKey2);
+            onStepComplete(calcKey2);
+          }}
+          soundEnabled={soundEnabled}
+        />
+        
+        {isCalcComplete(calcKey2) && (
+          <CalculationBox
+            key={calcKey3}
+            prompt="What is $10 ÷ 1.06³ = $10 ÷ 1.191? (Time 3 payment)"
+            correctAnswer={simpleAnnuity.pv3}
+            hint1="Divide 10 by 1.191"
+            hint2="10 ÷ 1.191 = 8.396..."
+            tolerance={CONSTANTS.TOLERANCE}
+            onCorrect={() => {
+              markCalcComplete(calcKey3);
+              onStepComplete(calcKey3);
+            }}
+            soundEnabled={soundEnabled}
+          />
+        )}
+        
+        {allComplete && (
+          <p style={{
+            fontSize: '15px',
+            lineHeight: '1.6',
+            color: COLORS.textSecondary,
+            marginTop: '16px',
+          }}>
+            Notice how each payment is worth <em>less</em> in present value terms — the 
+            further away it is, the more we discount it.
+          </p>
+        )}
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          canGoBack={canGoBack}
+          canContinue={allComplete}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  // Step 3: Sum to total PV
+  if (currentStep === 3) {
+    const calcKey = 'annuity-total';
+    
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          Adding It Up
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 4 of 5: Total present value
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          Now we add the three present values together to get the total present value 
+          of the annuity stream.
+        </p>
+        
+        {/* Show all three completed PVs */}
+        <div style={{
+          background: COLORS.surfaceAlt,
+          borderRadius: '12px',
+          padding: '16px',
+          marginTop: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}>
+          {[
+            { label: 'Time 1', calc: '$10 ÷ 1.06', pv: simpleAnnuity.pv1 },
+            { label: 'Time 2', calc: '$10 ÷ 1.06²', pv: simpleAnnuity.pv2 },
+            { label: 'Time 3', calc: '$10 ÷ 1.06³', pv: simpleAnnuity.pv3 },
+          ].map((item, i) => (
+            <div key={i} style={{
+              background: COLORS.successBg,
+              border: `1px solid ${COLORS.successBorder}`,
+              borderRadius: '8px',
+              padding: '12px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <LucideIcon name="Check" size={16} color={COLORS.success} />
+                <span style={{ fontSize: '14px', color: COLORS.textSecondary }}>
+                  {item.label}: {item.calc}
+                </span>
+              </div>
+              <span style={{ 
+                fontSize: '15px', 
+                fontWeight: '600', 
+                fontFamily: 'monospace',
+                color: COLORS.textPrimary,
+              }}>
+                {formatCurrency(item.pv)}
+              </span>
+            </div>
+          ))}
+        </div>
+        
+        <CalculationBox
+          key={calcKey}
+          prompt={`What is ${formatCurrency(simpleAnnuity.pv1)} + ${formatCurrency(simpleAnnuity.pv2)} + ${formatCurrency(simpleAnnuity.pv3)}?`}
+          correctAnswer={simpleAnnuity.totalPV}
+          hint1="Add the three present values"
+          hint2="9.43 + 8.90 + 8.40 = ?"
+          tolerance={CONSTANTS.TOLERANCE_SUM}
+          onCorrect={() => {
+            markCalcComplete(calcKey);
+            onStepComplete(calcKey);
+          }}
+          soundEnabled={soundEnabled}
+        />
+        
+        {isCalcComplete(calcKey) && (
+          <InsightBox soundEnabled={soundEnabled}>
+            <strong>Result:</strong> An annuity of $10 per period for 3 periods has a 
+            present value of <strong>{formatCurrency(simpleAnnuity.totalPV)}</strong> at 
+            a 6% discount rate.
+          </InsightBox>
+        )}
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          canGoBack={canGoBack}
+          canContinue={isCalcComplete(calcKey)}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  // Step 4: Verification with $31.41
+  if (currentStep === 4) {
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          A Satisfying Verification
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 5 of 5: Connecting back to our original streams
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          Here's a question: Is there an annuity that has the <em>same</em> present value 
+          as our original {formatCurrency(CONSTANTS.PV)}?
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          marginTop: '16px',
+        }}>
+          Yes! If we pay <strong>$31.41</strong> per period for 3 periods, the present 
+          value works out to almost exactly {formatCurrency(CONSTANTS.PV)}.
+        </p>
+        
+        {!showVerification && (
+          <button
+            onClick={() => setShowVerification(true)}
+            style={{
+              marginTop: '20px',
+              padding: '12px 24px',
+              border: 'none',
+              borderRadius: '8px',
+              background: COLORS.primary,
+              color: 'white',
+              fontSize: '15px',
+              fontWeight: '500',
+              cursor: 'pointer',
+            }}
+          >
+            Show me the math
+          </button>
+        )}
+        
+        {showVerification && (
+          <>
+            <div style={{
+              background: COLORS.surfaceAlt,
+              borderRadius: '12px',
+              padding: '20px',
+              marginTop: '20px',
+            }}>
+              <p style={{ 
+                margin: '0 0 16px 0', 
+                fontSize: '14px', 
+                color: COLORS.textSecondary,
+                textAlign: 'center',
+              }}>
+                Discounting $31.41 at each period:
+              </p>
+              
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ width: '120px', fontSize: '14px', color: COLORS.textSecondary }}>
+                    Time 1:
+                  </span>
+                  <code style={{ fontSize: '14px' }}>
+                    $31.41 ÷ 1.06 = {formatCurrency(verifyAnnuity.pv1)}
+                  </code>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ width: '120px', fontSize: '14px', color: COLORS.textSecondary }}>
+                    Time 2:
+                  </span>
+                  <code style={{ fontSize: '14px' }}>
+                    $31.41 ÷ 1.06² = {formatCurrency(verifyAnnuity.pv2)}
+                  </code>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ width: '120px', fontSize: '14px', color: COLORS.textSecondary }}>
+                    Time 3:
+                  </span>
+                  <code style={{ fontSize: '14px' }}>
+                    $31.41 ÷ 1.06³ = {formatCurrency(verifyAnnuity.pv3)}
+                  </code>
+                </div>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '12px',
+                  paddingTop: '12px',
+                  borderTop: `1px solid ${COLORS.border}`,
+                  marginTop: '4px',
+                }}>
+                  <span style={{ width: '120px', fontSize: '14px', fontWeight: '600' }}>
+                    Total PV:
+                  </span>
+                  <code style={{ 
+                    fontSize: '16px', 
+                    fontWeight: '700',
+                    color: COLORS.gold,
+                  }}>
+                    {formatCurrency(verifyAnnuity.totalPV)}
+                  </code>
+                  <LucideIcon name="Check" size={20} color={COLORS.success} />
+                </div>
+              </div>
+            </div>
+            
+            <InsightBox soundEnabled={soundEnabled && !verifyComplete} onShow={() => setVerifyComplete(true)}>
+              <strong>Three equivalent streams!</strong> All of these have the same value:
+              <ul style={{ margin: '12px 0 0 0', paddingLeft: '20px', lineHeight: '1.8' }}>
+                <li><strong>Stream A:</strong> {formatCurrency(CONSTANTS.PV)} today</li>
+                <li><strong>Stream B:</strong> {formatCurrency(CONSTANTS.FV)} in 3 periods</li>
+                <li><strong>Stream C:</strong> $31.41 per period for 3 periods</li>
+              </ul>
+              They're all worth {formatCurrency(CONSTANTS.PV)} in present value terms.
+            </InsightBox>
+            
+            <RabbitHoleButton
+              rabbitHole={RABBIT_HOLES.realWorldAnnuities}
+              explored={exploredRabbitHoles.includes('realWorldAnnuities')}
+              onClick={() => onRabbitHoleClick('realWorldAnnuities')}
+              soundEnabled={soundEnabled}
+            />
+          </>
+        )}
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={() => {
+            onStepComplete('annuity-verify');
+            onContinue();
+          }}
+          canGoBack={canGoBack}
+          canContinue={showVerification}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  return null;
+};
+
+// --- Part 3: Irregular Cash Flows ---
+const IrregularPart = ({ 
+  currentStep, 
+  onStepComplete,
+  isStepComplete,
+  soundEnabled,
+  onContinue,
+  onBack,
+  canGoBack
+}) => {
+  const [calculations, setCalculations] = useState({});
+  const [completed, setCompleted] = useState({});
+  
+  const markCalcComplete = (key) => {
+    setCompleted(prev => ({ ...prev, [key]: true }));
+  };
+  
+  const isCalcComplete = (key) => completed[key] === true;
+  
+  const irregular = CONSTANTS.IRREGULAR_STREAM;
+  
+  // Step 0: Introduce irregular stream
+  if (currentStep === 0) {
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          Irregular Cash Flows
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 1 of 4: When payments aren't equal
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          Annuities are convenient because every payment is the same. But real life often 
+          gives us <strong>irregular</strong> cash flows — different amounts at different times.
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          marginTop: '16px',
+        }}>
+          The approach is exactly the same: discount each payment back to Time 0, then 
+          add them up. Let's practice with this stream:
+        </p>
+        
+        <div style={{
+          background: COLORS.surfaceAlt,
+          borderRadius: '12px',
+          padding: '24px',
+          marginTop: '20px',
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-end',
+            gap: '32px',
+          }}>
+            {[
+              { amount: irregular.cf1, time: 1 },
+              { amount: irregular.cf2, time: 2 },
+              { amount: irregular.cf3, time: 3 },
+            ].map((item, i) => (
+              <div key={i} style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}>
+                <div style={{
+                  background: 'white',
+                  border: `2px solid ${COLORS.border}`,
+                  borderRadius: '10px',
+                  padding: '16px 20px',
+                  textAlign: 'center',
+                  minWidth: '80px',
+                }}>
+                  <div style={{ 
+                    fontFamily: 'monospace', 
+                    fontSize: '20px', 
+                    fontWeight: '700',
+                    color: COLORS.textPrimary,
+                  }}>
+                    {formatCurrency(item.amount)}
+                  </div>
+                </div>
+                <div style={{ 
+                  fontSize: '13px', 
+                  color: COLORS.textSecondary, 
+                  marginTop: '8px' 
+                }}>
+                  Time {item.time}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={() => {
+            onStepComplete('irregular-intro');
+            onContinue();
+          }}
+          canGoBack={canGoBack}
+          canContinue={true}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  // Step 1: Discount the $5
+  if (currentStep === 1) {
+    const calcKey = 'irregular-pv1';
+    
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          Discounting Irregular Flows
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 2 of 4: The first payment
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          Start with the ${irregular.cf1} at Time 1. Discount it one period:
+        </p>
+        
+        <CalculationBox
+          key={calcKey}
+          prompt={`What is $${irregular.cf1.toFixed(2)} ÷ 1.06?`}
+          correctAnswer={irregular.pv1}
+          hint1={`Divide ${irregular.cf1} by 1.06`}
+          hint2={`${irregular.cf1} ÷ 1.06 = ${irregular.pv1.toFixed(4)}...`}
+          tolerance={CONSTANTS.TOLERANCE}
+          onCorrect={() => {
+            markCalcComplete(calcKey);
+            onStepComplete(calcKey);
+          }}
+          soundEnabled={soundEnabled}
+        />
+        
+        {isCalcComplete(calcKey) && (
+          <p style={{
+            fontSize: '15px',
+            lineHeight: '1.6',
+            color: COLORS.textSecondary,
+            marginTop: '16px',
+          }}>
+            ✓ PV of ${irregular.cf1} at Time 1 = <strong>{formatCurrency(irregular.pv1)}</strong>
+          </p>
+        )}
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          canGoBack={canGoBack}
+          canContinue={isCalcComplete(calcKey)}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  // Step 2: Discount the $15 and $8
+  if (currentStep === 2) {
+    const calcKey2 = 'irregular-pv2';
+    const calcKey3 = 'irregular-pv3';
+    const allComplete = isCalcComplete(calcKey2) && isCalcComplete(calcKey3);
+    
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          The Remaining Payments
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 3 of 4: Payments at Time 2 and Time 3
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          Now discount the ${irregular.cf2} (two periods) and ${irregular.cf3} (three periods):
+        </p>
+        
+        {/* Show completed PV1 from previous step */}
+        <div style={{
+          background: COLORS.successBg,
+          border: `1px solid ${COLORS.successBorder}`,
+          borderRadius: '12px',
+          padding: '16px 20px',
+          marginTop: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+        }}>
+          <LucideIcon name="Check" size={20} color={COLORS.success} />
+          <div>
+            <div style={{ fontSize: '14px', color: COLORS.textSecondary }}>
+              Time 1 payment: ${irregular.cf1.toFixed(2)} ÷ 1.06
+            </div>
+            <div style={{ fontSize: '16px', fontWeight: '600', fontFamily: 'monospace', color: COLORS.textPrimary }}>
+              PV = {formatCurrency(irregular.pv1)}
+            </div>
+          </div>
+        </div>
+        
+        <CalculationBox
+          key={calcKey2}
+          prompt={`What is $${irregular.cf2.toFixed(2)} ÷ 1.06² = $${irregular.cf2.toFixed(2)} ÷ 1.1236?`}
+          correctAnswer={irregular.pv2}
+          hint1={`Divide ${irregular.cf2} by 1.1236`}
+          hint2={`${irregular.cf2} ÷ 1.1236 = ${irregular.pv2.toFixed(2)}...`}
+          tolerance={CONSTANTS.TOLERANCE}
+          onCorrect={() => {
+            markCalcComplete(calcKey2);
+            onStepComplete(calcKey2);
+          }}
+          soundEnabled={soundEnabled}
+        />
+        
+        {isCalcComplete(calcKey2) && (
+          <CalculationBox
+            key={calcKey3}
+            prompt={`What is $${irregular.cf3.toFixed(2)} ÷ 1.06³ = $${irregular.cf3.toFixed(2)} ÷ 1.191?`}
+            correctAnswer={irregular.pv3}
+            hint1={`Divide ${irregular.cf3} by 1.191`}
+            hint2={`${irregular.cf3} ÷ 1.191 = ${irregular.pv3.toFixed(2)}...`}
+            tolerance={CONSTANTS.TOLERANCE}
+            onCorrect={() => {
+              markCalcComplete(calcKey3);
+              onStepComplete(calcKey3);
+            }}
+            soundEnabled={soundEnabled}
+          />
+        )}
+        
+        {allComplete && (
+          <p style={{
+            fontSize: '15px',
+            lineHeight: '1.6',
+            color: COLORS.textSecondary,
+            marginTop: '16px',
+          }}>
+            All three payments discounted. Now let's add them up.
+          </p>
+        )}
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={onContinue}
+          canGoBack={canGoBack}
+          canContinue={allComplete}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  // Step 3: Sum to total
+  if (currentStep === 3) {
+    const calcKey = 'irregular-total';
+    
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          Total Present Value
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 4 of 4: Adding it all up
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          Now add all three present values:
+        </p>
+        
+        {/* Show all three completed PVs */}
+        <div style={{
+          background: COLORS.surfaceAlt,
+          borderRadius: '12px',
+          padding: '16px',
+          marginTop: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}>
+          {[
+            { label: 'Time 1', cf: irregular.cf1, calc: `$${irregular.cf1.toFixed(2)} ÷ 1.06`, pv: irregular.pv1 },
+            { label: 'Time 2', cf: irregular.cf2, calc: `$${irregular.cf2.toFixed(2)} ÷ 1.06²`, pv: irregular.pv2 },
+            { label: 'Time 3', cf: irregular.cf3, calc: `$${irregular.cf3.toFixed(2)} ÷ 1.06³`, pv: irregular.pv3 },
+          ].map((item, i) => (
+            <div key={i} style={{
+              background: COLORS.successBg,
+              border: `1px solid ${COLORS.successBorder}`,
+              borderRadius: '8px',
+              padding: '12px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <LucideIcon name="Check" size={16} color={COLORS.success} />
+                <span style={{ fontSize: '14px', color: COLORS.textSecondary }}>
+                  {item.label}: {item.calc}
+                </span>
+              </div>
+              <span style={{ 
+                fontSize: '15px', 
+                fontWeight: '600', 
+                fontFamily: 'monospace',
+                color: COLORS.textPrimary,
+              }}>
+                {formatCurrency(item.pv)}
+              </span>
+            </div>
+          ))}
+        </div>
+        
+        <CalculationBox
+          key={calcKey}
+          prompt={`What is ${formatCurrency(irregular.pv1)} + ${formatCurrency(irregular.pv2)} + ${formatCurrency(irregular.pv3)}?`}
+          correctAnswer={irregular.totalPV}
+          hint1="Add the three present values"
+          hint2={`${irregular.pv1.toFixed(2)} + ${irregular.pv2.toFixed(2)} + ${irregular.pv3.toFixed(2)} = ?`}
+          tolerance={CONSTANTS.TOLERANCE_SUM}
+          onCorrect={() => {
+            markCalcComplete(calcKey);
+            onStepComplete(calcKey);
+          }}
+          soundEnabled={soundEnabled}
+        />
+        
+        {isCalcComplete(calcKey) && (
+          <InsightBox soundEnabled={soundEnabled}>
+            <strong>The process is always the same:</strong>
+            <ol style={{ margin: '12px 0 0 0', paddingLeft: '20px', lineHeight: '1.8' }}>
+              <li>Identify each cash flow and when it occurs</li>
+              <li>Discount each one back to Time 0</li>
+              <li>Add up all the present values</li>
+            </ol>
+            <p style={{ marginTop: '12px', marginBottom: 0 }}>
+              This works for <em>any</em> stream — annuities, irregular flows, or combinations.
+            </p>
+          </InsightBox>
+        )}
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={() => {
+            onStepComplete('irregular-complete');
+            onContinue();
+          }}
+          canGoBack={canGoBack}
+          canContinue={isCalcComplete(calcKey)}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  return null;
+};
+
+// --- Long Stream Visual (for "tedious" demonstration) ---
+const LongStreamVisual = ({ revealedCount = 3 }) => {
+  const payments = Array(10).fill(CONSTANTS.LONG_STREAM.payment);
+  
+  return (
+    <div style={{
+      background: COLORS.surfaceAlt,
+      borderRadius: '12px',
+      padding: '24px',
+      marginTop: '16px',
+      overflowX: 'auto',
+    }}>
+      {/* Payment boxes */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+        gap: '8px',
+        minWidth: 'fit-content',
+        marginBottom: '16px',
+      }}>
+        {payments.map((payment, i) => (
+          <div key={i} style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}>
+            <div style={{
+              background: i < revealedCount ? COLORS.successBg : 'white',
+              border: `2px solid ${i < revealedCount ? COLORS.successBorder : COLORS.border}`,
+              borderRadius: '8px',
+              padding: '8px 12px',
+              textAlign: 'center',
+              minWidth: '60px',
+              opacity: i < revealedCount ? 1 : 0.6,
+            }}>
+              <div style={{ 
+                fontFamily: 'monospace', 
+                fontSize: '14px', 
+                fontWeight: '600',
+                color: COLORS.textPrimary,
+              }}>
+                $100
+              </div>
+            </div>
+            <div style={{ 
+              fontSize: '11px', 
+              color: COLORS.textSecondary, 
+              marginTop: '4px' 
+            }}>
+              T{i + 1}
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      {/* The growing formula */}
+      <div style={{
+        background: 'white',
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: '8px',
+        padding: '16px',
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        lineHeight: '1.8',
+        color: COLORS.textPrimary,
+        textAlign: 'center',
+      }}>
+        <span style={{ color: COLORS.gold, fontWeight: '600' }}>PV = </span>
+        {Array(revealedCount).fill(null).map((_, i) => (
+          <span key={i}>
+            <span style={{ color: COLORS.accent }}>
+              $100÷1.06{i > 0 && <sup>{i + 1}</sup>}
+            </span>
+            {i < revealedCount - 1 && ' + '}
+          </span>
+        ))}
+        {revealedCount < 10 && (
+          <span style={{ color: COLORS.textMuted }}> + ... + $100÷1.06<sup>10</sup></span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// --- Part 4: This Gets Tedious ---
+const TediousPart = ({ 
+  currentStep, 
+  onStepComplete,
+  isStepComplete,
+  soundEnabled,
+  onContinue,
+  onBack,
+  canGoBack,
+  onRabbitHoleClick,
+  exploredRabbitHoles
+}) => {
+  const [revealedPayments, setRevealedPayments] = useState(3);
+  
+  // Step 0: Show the long stream
+  if (currentStep === 0) {
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          Scaling Up
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 1 of 3: A longer stream
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          You've now calculated present values for 3-payment streams. But what if 
+          you had <strong>10 payments</strong>?
+        </p>
+        
+        <LongStreamVisual revealedCount={10} />
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          marginTop: '20px',
+        }}>
+          Same principle: discount each payment, then add. But now you'd need to 
+          calculate <strong>10 separate present values</strong> and sum them all.
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          marginTop: '16px',
+        }}>
+          And this is just 10 payments. What about a 30-year mortgage with 
+          <strong> 360 monthly payments</strong>?
+        </p>
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={() => {
+            onStepComplete('tedious-intro');
+            onContinue();
+          }}
+          canGoBack={canGoBack}
+          canContinue={true}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  // Step 1: The realization
+  if (currentStep === 1) {
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          The Problem
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 2 of 3: Why we need tools
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          The math isn't hard. It's the same operation over and over:
+        </p>
+        
+        <div style={{
+          background: COLORS.surfaceAlt,
+          borderRadius: '12px',
+          padding: '20px',
+          marginTop: '16px',
+          fontFamily: 'monospace',
+          fontSize: '14px',
+          lineHeight: '2',
+        }}>
+          <div>Payment 1: <span style={{ color: COLORS.accent }}>$100 ÷ 1.06</span> = $94.34</div>
+          <div>Payment 2: <span style={{ color: COLORS.accent }}>$100 ÷ 1.1236</span> = $89.00</div>
+          <div>Payment 3: <span style={{ color: COLORS.accent }}>$100 ÷ 1.1910</span> = $83.96</div>
+          <div style={{ color: COLORS.textMuted }}>Payment 4: $100 ÷ 1.2625 = ...</div>
+          <div style={{ color: COLORS.textMuted }}>Payment 5: $100 ÷ 1.3382 = ...</div>
+          <div style={{ color: COLORS.textMuted, fontStyle: 'italic' }}>... and so on ...</div>
+        </div>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          marginTop: '20px',
+        }}>
+          But doing this by hand is:
+        </p>
+        
+        <ul style={{
+          fontSize: '16px',
+          lineHeight: '1.8',
+          color: COLORS.textPrimary,
+          marginTop: '8px',
+          paddingLeft: '24px',
+        }}>
+          <li><strong>Tedious</strong> — lots of repetitive arithmetic</li>
+          <li><strong>Error-prone</strong> — one typo ruins everything</li>
+          <li><strong>Inflexible</strong> — what if the interest rate changes?</li>
+        </ul>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          marginTop: '16px',
+        }}>
+          We need a better way.
+        </p>
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={() => {
+            onStepComplete('tedious-problem');
+            onContinue();
+          }}
+          canGoBack={canGoBack}
+          canContinue={true}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  // Step 2: The solution preview
+  if (currentStep === 2) {
+    return (
+      <div>
+        <h2 style={{
+          margin: '0 0 8px 0',
+          color: COLORS.primary,
+          fontSize: '24px',
+        }}>
+          Enter the Spreadsheet
+        </h2>
+        
+        <p style={{
+          color: COLORS.textSecondary,
+          fontSize: '15px',
+          marginBottom: '24px',
+        }}>
+          Step 3 of 3: A tool that thinks the way we do
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+        }}>
+          Spreadsheets were essentially <strong>invented</strong> for problems like this.
+        </p>
+        
+        <p style={{
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          marginTop: '16px',
+        }}>
+          In the next tutorial, you'll build a spreadsheet that:
+        </p>
+        
+        <div style={{
+          background: COLORS.surfaceAlt,
+          borderRadius: '12px',
+          padding: '20px',
+          marginTop: '16px',
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px',
+            marginBottom: '12px',
+          }}>
+            <LucideIcon name="Calculator" size={20} color={COLORS.primary} style={{ marginTop: '2px', flexShrink: 0 }} />
+            <div style={{ fontSize: '15px', lineHeight: '1.6', color: COLORS.textPrimary }}>
+              Shows <strong>each payment</strong> and <strong>each discount factor</strong> — 
+              so you can see the mechanics at work
+            </div>
+          </div>
+          
+          <div style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px',
+            marginBottom: '12px',
+          }}>
+            <LucideIcon name="TrendingUp" size={20} color={COLORS.primary} style={{ marginTop: '2px', flexShrink: 0 }} />
+            <div style={{ fontSize: '15px', lineHeight: '1.6', color: COLORS.textPrimary }}>
+              Lets you <strong>change the interest rate</strong> and instantly see 
+              how all the values update
+            </div>
+          </div>
+          
+          <div style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px',
+          }}>
+            <LucideIcon name="FileSpreadsheet" size={20} color={COLORS.primary} style={{ marginTop: '2px', flexShrink: 0 }} />
+            <div style={{ fontSize: '15px', lineHeight: '1.6', color: COLORS.textPrimary }}>
+              Handles <strong>any number of payments</strong> — 10, 100, or 1,000
+            </div>
+          </div>
+        </div>
+        
+        <InsightBox soundEnabled={soundEnabled}>
+          <strong>The spreadsheet doesn't hide the math</strong> — it makes it visible. 
+          You'll build each step yourself, but the computer handles the arithmetic 
+          so you can focus on understanding the structure.
+        </InsightBox>
+        
+        <RabbitHoleButton
+          rabbitHole={RABBIT_HOLES.spreadsheetRevolution}
+          explored={exploredRabbitHoles.includes('spreadsheetRevolution')}
+          onClick={() => onRabbitHoleClick('spreadsheetRevolution')}
+          soundEnabled={soundEnabled}
+        />
+        
+        <NavButtons
+          onBack={onBack}
+          onContinue={() => {
+            onStepComplete('tedious-solution');
+            onContinue();
+          }}
+          canGoBack={canGoBack}
+          canContinue={true}
+          soundEnabled={soundEnabled}
+        />
+      </div>
+    );
+  }
+  
+  return null;
+};
+
+// --- Part 5: Complete ---
+const CompletePart = ({ 
+  currentStep, 
+  soundEnabled,
+  onBack,
+  canGoBack,
+  exploredRabbitHoles,
+  onRabbitHoleClick
+}) => {
+  const totalRabbitHoles = Object.keys(RABBIT_HOLES).length;
+  const exploredCount = exploredRabbitHoles.length;
+  
+  return (
+    <div>
+      <h2 style={{
+        margin: '0 0 8px 0',
+        color: COLORS.primary,
+        fontSize: '24px',
+      }}>
+        Tutorial Complete! 🎉
+      </h2>
+      
+      <p style={{
+        color: COLORS.textSecondary,
+        fontSize: '15px',
+        marginBottom: '24px',
+      }}>
+        You've built a solid foundation for financial calculations.
+      </p>
+      
+      {/* Vocabulary recap */}
+      <div style={{
+        background: COLORS.surfaceAlt,
+        borderRadius: '12px',
+        padding: '20px',
+        marginBottom: '20px',
+      }}>
+        <h3 style={{
+          margin: '0 0 16px 0',
+          fontSize: '16px',
+          fontWeight: '600',
+          color: COLORS.primary,
+        }}>
+          Vocabulary You Now Know
+        </h3>
+        
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: '12px',
+        }}>
+          {[
+            { term: 'Present Value (PV)', desc: 'Value today' },
+            { term: 'Future Value (FV)', desc: 'Value later' },
+            { term: 'Discounting', desc: 'Walking backward (÷1.06)' },
+            { term: 'Compounding', desc: 'Walking forward (×1.06)' },
+            { term: 'Discount Rate', desc: 'Interest rate for PV' },
+            { term: 'Annuity', desc: 'Equal periodic payments' },
+          ].map((item, i) => (
+            <div key={i} style={{
+              background: 'white',
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '8px',
+              padding: '10px 12px',
+            }}>
+              <div style={{ 
+                fontSize: '14px', 
+                fontWeight: '600', 
+                color: COLORS.textPrimary,
+                marginBottom: '2px',
+              }}>
+                {item.term}
+              </div>
+              <div style={{ fontSize: '13px', color: COLORS.textSecondary }}>
+                {item.desc}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      {/* Key insight */}
+      <InsightBox soundEnabled={soundEnabled}>
+        <strong>The Universal Principle:</strong> To find the present value of 
+        <em> any</em> cash flow stream, discount each payment back to today, 
+        then add them up. Same method for annuities, irregular flows, or anything else.
+      </InsightBox>
+      
+      {/* Rabbit hole summary */}
+      <div style={{
+        background: COLORS.rabbitHoleLight,
+        border: `2px solid ${COLORS.rabbitHoleBorder}`,
+        borderRadius: '12px',
+        padding: '20px',
+        marginTop: '20px',
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          marginBottom: '16px',
+        }}>
+          <LucideIcon name="Rabbit" size={24} color={COLORS.rabbitHole} />
+          <h3 style={{
+            margin: 0,
+            fontSize: '16px',
+            fontWeight: '600',
+            color: COLORS.rabbitHole,
+          }}>
+            Rabbit Holes: {exploredCount} of {totalRabbitHoles} explored
+          </h3>
+        </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {Object.values(RABBIT_HOLES).map((hole) => {
+            const isExplored = exploredRabbitHoles.includes(hole.id);
+            return (
+              <div 
+                key={hole.id}
+                onClick={() => !isExplored && onRabbitHoleClick(hole.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '10px 12px',
+                  background: isExplored ? 'white' : 'rgba(255,255,255,0.5)',
+                  borderRadius: '8px',
+                  cursor: isExplored ? 'default' : 'pointer',
+                  border: `1px solid ${isExplored ? COLORS.successBorder : 'transparent'}`,
+                }}
+              >
+                {isExplored ? (
+                  <LucideIcon name="Check" size={18} color={COLORS.success} />
+                ) : (
+                  <div style={{
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '50%',
+                    border: `2px solid ${COLORS.rabbitHoleBorder}`,
+                  }} />
+                )}
+                <span style={{ 
+                  fontSize: '14px', 
+                  color: isExplored ? COLORS.textPrimary : COLORS.rabbitHole,
+                  flex: 1,
+                }}>
+                  {hole.title}
+                </span>
+                {!isExplored && (
+                  <span style={{ 
+                    fontSize: '12px', 
+                    color: COLORS.rabbitHole,
+                    fontStyle: 'italic',
+                  }}>
+                    Explore →
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      
+      {/* Bridge to next tutorial */}
+      {/* Return to Hub */}
+      <div style={{
+        background: COLORS.primaryLight,
+        color: 'white',
+        borderRadius: '12px',
+        padding: '20px',
+        marginTop: '20px',
+        textAlign: 'center',
+      }}>
+        <p style={{
+          margin: '0 0 12px 0',
+          fontSize: '15px',
+          lineHeight: '1.6',
+        }}>
+          This Deep Dive covered naming conventions and practice problems.
+          Ready to continue or explore more?
+        </p>
+        <a href="index.html" style={{
+          display: 'inline-block',
+          padding: '10px 24px',
+          background: 'white',
+          color: COLORS.primary,
+          borderRadius: '8px',
+          textDecoration: 'none',
+          fontWeight: '500',
+          fontSize: '15px',
+        }}>
+          Return to Hub
+        </a>
+      </div>
+
+      {/* Navigation - Back only */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-start',
+        marginTop: '32px',
+      }}>
+        <button
+          onClick={onBack}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '10px 20px',
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: '8px',
+            background: 'white',
+            color: COLORS.textPrimary,
+            cursor: 'pointer',
+            fontSize: '15px',
+          }}
+        >
+          <LucideIcon name="ChevronLeft" size={18} />
+          Back
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// MAIN TUTORIAL COMPONENT
+// ============================================================================
+
+const Tutorial02C = () => {
+  // --- Core Navigation State ---
+  const [currentPartIndex, setCurrentPartIndex] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  
+  // --- Modal State ---
+  const [showGlossary, setShowGlossary] = useState(false);
+  const [showRestartConfirm, setShowRestartConfirm] = useState(false);
+  const [activeRabbitHole, setActiveRabbitHole] = useState(null);
+  
+  // --- Exploration Tracking ---
+  const [exploredRabbitHoles, setExploredRabbitHoles] = useState([]);
+  
+  // --- Step Completion Tracking ---
+  const [completedSteps, setCompletedSteps] = useState({});
+  
+  // --- Dev Mode ---
+  const [devMode, setDevMode] = useState(false);
+  const [headerClickCount, setHeaderClickCount] = useState(0);
+  const [lastClickTime, setLastClickTime] = useState(0);
+  
+  // --- Handlers ---
+  const markStepComplete = useCallback((stepKey) => {
+    setCompletedSteps(prev => ({
+      ...prev,
+      [stepKey]: true
+    }));
+  }, []);
+  
+  const isStepComplete = useCallback((stepKey) => {
+    return completedSteps[stepKey] === true;
+  }, [completedSteps]);
+  
+  const handleContinue = useCallback(() => {
+    const currentPart = PARTS[currentPartIndex];
+    
+    if (currentStep < currentPart.steps - 1) {
+      setCurrentStep(prev => prev + 1);
+    } else if (currentPartIndex < PARTS.length - 1) {
+      setCurrentPartIndex(prev => prev + 1);
+      setCurrentStep(0);
+    }
+  }, [currentPartIndex, currentStep]);
+  
+  const handleBack = useCallback(() => {
+    if (currentStep > 0) {
+      setCurrentStep(prev => prev - 1);
+    } else if (currentPartIndex > 0) {
+      const prevPartIndex = currentPartIndex - 1;
+      setCurrentPartIndex(prevPartIndex);
+      setCurrentStep(PARTS[prevPartIndex].steps - 1);
+    }
+  }, [currentPartIndex, currentStep]);
+  
+  const handleRestart = useCallback(() => {
+    setShowRestartConfirm(true);
+  }, []);
+  
+  const confirmRestart = useCallback(() => {
+    setCurrentPartIndex(0);
+    setCurrentStep(0);
+    setExploredRabbitHoles([]);
+    setCompletedSteps({});
+    setShowRestartConfirm(false);
+  }, []);
+  
+  const handleRabbitHoleClick = useCallback((rabbitHoleId) => {
+    setActiveRabbitHole(RABBIT_HOLES[rabbitHoleId]);
+    if (!exploredRabbitHoles.includes(rabbitHoleId)) {
+      setExploredRabbitHoles(prev => [...prev, rabbitHoleId]);
+    }
+  }, [exploredRabbitHoles]);
+  
+  const handleHeaderClick = useCallback(() => {
+    const now = Date.now();
+    if (now - lastClickTime < 500) {
+      const newCount = headerClickCount + 1;
+      setHeaderClickCount(newCount);
+      if (newCount >= 3) {
+        setDevMode(prev => !prev);
+        setHeaderClickCount(0);
+      }
+    } else {
+      setHeaderClickCount(1);
+    }
+    setLastClickTime(now);
+  }, [headerClickCount, lastClickTime]);
+  
+  const handleJumpToPart = useCallback((partIndex) => {
+    setCurrentPartIndex(partIndex);
+    setCurrentStep(0);
+  }, []);
+  
+  // --- Computed Values ---
+  const currentPart = PARTS[currentPartIndex];
+  const canGoBack = currentPartIndex > 0 || currentStep > 0;
+  const totalRabbitHoles = Object.keys(RABBIT_HOLES).length;
+  
+  // --- Render Current Part ---
+  const renderCurrentPart = () => {
+    switch (currentPart.id) {
+      case 'recap':
+        return (
+          <RecapPart
+            currentStep={currentStep}
+            onStepComplete={() => markStepComplete(`recap-${currentStep}`)}
+            soundEnabled={soundEnabled}
+            onContinue={handleContinue}
+            onBack={handleBack}
+            canGoBack={canGoBack}
+          />
+        );
+        
+      case 'vocabulary':
+        return (
+          <VocabularyPart
+            currentStep={currentStep}
+            onStepComplete={markStepComplete}
+            isStepComplete={isStepComplete}
+            soundEnabled={soundEnabled}
+            onContinue={handleContinue}
+            onBack={handleBack}
+            canGoBack={canGoBack}
+            onRabbitHoleClick={handleRabbitHoleClick}
+            exploredRabbitHoles={exploredRabbitHoles}
+          />
+        );
+        
+      case 'annuity':
+        return (
+          <AnnuityPart
+            currentStep={currentStep}
+            onStepComplete={markStepComplete}
+            isStepComplete={isStepComplete}
+            soundEnabled={soundEnabled}
+            onContinue={handleContinue}
+            onBack={handleBack}
+            canGoBack={canGoBack}
+            onRabbitHoleClick={handleRabbitHoleClick}
+            exploredRabbitHoles={exploredRabbitHoles}
+          />
+        );
+        
+      case 'irregular':
+        return (
+          <IrregularPart
+            currentStep={currentStep}
+            onStepComplete={markStepComplete}
+            isStepComplete={isStepComplete}
+            soundEnabled={soundEnabled}
+            onContinue={handleContinue}
+            onBack={handleBack}
+            canGoBack={canGoBack}
+          />
+        );
+        
+      case 'tedious':
+        return (
+          <TediousPart
+            currentStep={currentStep}
+            onStepComplete={markStepComplete}
+            isStepComplete={isStepComplete}
+            soundEnabled={soundEnabled}
+            onContinue={handleContinue}
+            onBack={handleBack}
+            canGoBack={canGoBack}
+            onRabbitHoleClick={handleRabbitHoleClick}
+            exploredRabbitHoles={exploredRabbitHoles}
+          />
+        );
+        
+      case 'complete':
+        return (
+          <CompletePart
+            currentStep={currentStep}
+            soundEnabled={soundEnabled}
+            onBack={handleBack}
+            canGoBack={canGoBack}
+            exploredRabbitHoles={exploredRabbitHoles}
+            onRabbitHoleClick={handleRabbitHoleClick}
+          />
+        );
+        
+      default:
+        return (
+          <div>
+            <h2 style={{
+              margin: '0 0 16px 0',
+              color: COLORS.primary,
+              fontSize: '24px',
+            }}>
+              {currentPart.title}
+            </h2>
+            
+            <p style={{
+              color: COLORS.textSecondary,
+              fontSize: '15px',
+            }}>
+              Step {currentStep + 1} of {currentPart.steps}
+            </p>
+            
+            <div style={{
+              marginTop: '24px',
+              padding: '40px 20px',
+              background: COLORS.surfaceAlt,
+              borderRadius: '12px',
+              border: `2px dashed ${COLORS.border}`,
+              textAlign: 'center',
+            }}>
+              <p style={{
+                margin: 0,
+                color: COLORS.textMuted,
+                fontSize: '14px',
+              }}>
+                Content not found for this part.
+              </p>
+            </div>
+            
+            <NavButtons
+              onBack={handleBack}
+              onContinue={handleContinue}
+              canGoBack={canGoBack}
+              canContinue={true}
+              soundEnabled={soundEnabled}
+            />
+          </div>
+        );
+    }
+  };
+  
+  // --- Main Render ---
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: COLORS.background,
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    }}>
+      <Header
+        currentPartIndex={currentPartIndex}
+        currentStep={currentStep}
+        exploredRabbitHoles={exploredRabbitHoles}
+        totalRabbitHoles={totalRabbitHoles}
+        onGlossaryClick={() => setShowGlossary(true)}
+        onRestartClick={handleRestart}
+        onHeaderClick={handleHeaderClick}
+        soundEnabled={soundEnabled}
+        onSoundToggle={() => setSoundEnabled(prev => !prev)}
+      />
+      
+      <main style={{
+        maxWidth: '800px',
+        margin: '0 auto',
+        padding: '32px 24px',
+      }}>
+        <div style={{
+          background: 'white',
+          borderRadius: '16px',
+          padding: '32px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        }}>
+          {renderCurrentPart()}
+        </div>
+      </main>
+      
+      {/* Modals */}
+      {showGlossary && <GlossaryModal onClose={() => setShowGlossary(false)} />}
+      
+      {showRestartConfirm && (
+        <RestartConfirmModal
+          onConfirm={confirmRestart}
+          onCancel={() => setShowRestartConfirm(false)}
+        />
+      )}
+      
+      {activeRabbitHole && (
+        <RabbitHoleModal
+          rabbitHole={activeRabbitHole}
+          onClose={() => setActiveRabbitHole(null)}
+        />
+      )}
+      
+      {/* Dev Mode Panel */}
+      {devMode && (
+        <DevModePanel
+          onJumpToPart={handleJumpToPart}
+          currentPartIndex={currentPartIndex}
+          onClose={() => setDevMode(false)}
+        />
+      )}
+    </div>
+  );
+};
+
+
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<Tutorial02C />);
+    </script>
+</body>
+</html>

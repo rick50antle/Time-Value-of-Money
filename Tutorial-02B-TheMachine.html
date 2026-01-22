@@ -1,0 +1,2741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutorial 02B: The Machine | Time Value of Money</title>
+
+    <!-- React and ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+
+    <!-- Babel for JSX transformation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f8fafc;
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+/**
+ * Tutorial 02B: The Machine
+ * ACCT 2700 - Foundations of Accounting & Valuation
+ * Yale School of Management
+ *
+ * Version: 1.1
+ * Date: January 15, 2025
+ *
+ * This tutorial introduces the "machine" — the opportunity to borrow and lend
+ * that enables value measurement. Covers compounding and discounting mechanics,
+ * then delivers the key insight: the ability to borrow and lend makes value
+ * measurement possible.
+ *
+ * Follows Tutorial 02A (The Puzzle) which established that without the ability
+ * to borrow or lend, value depends on who's measuring.
+ *
+ * Parts:
+ *   5. The Machine (intro borrowing/lending at 6%)
+ *   6. Walking Forward (compounding: $83.96 → $100)
+ *   7. Walking Backward (discounting: $100 → $83.96)
+ *   8. The Insight (borrowing/lending enables measurement)
+ *
+ * Estimated time: 15-20 minutes
+ */
+
+const { useState, useCallback } = React;
+
+// ============================================================================
+// LUCIDE ICON COMPONENTS
+// ============================================================================
+
+const LucideIcon = ({ name, size = 24, color = 'currentColor', style = {} }) => {
+    const iconRef = React.useRef(null);
+
+    React.useEffect(() => {
+        if (iconRef.current && lucide[name]) {
+            iconRef.current.innerHTML = '';
+            const svg = lucide.createElement(lucide[name]);
+            svg.setAttribute('width', size);
+            svg.setAttribute('height', size);
+            svg.setAttribute('stroke', color);
+            iconRef.current.appendChild(svg);
+        }
+    }, [name, size, color]);
+
+    return <span ref={iconRef} style={{ display: 'inline-flex', alignItems: 'center', ...style }} />;
+};
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const CONSTANTS = {
+  // Core financial values
+  RATE: 0.06,                    // 6% interest rate per period
+  PV: 83.96,                     // Present value
+  FV: 100.00,                    // Future value (3 periods)
+  PERIODS: 3,                    // Number of periods
+
+  // Intermediate values for compounding/discounting
+  TIME_1_VALUE: 89.00,           // 83.96 × 1.06 (rounded)
+  TIME_2_VALUE: 94.34,           // 89.00 × 1.06 (rounded)
+
+  // For discounting (working backward)
+  DISCOUNT_TIME_2: 94.34,        // 100 ÷ 1.06
+  DISCOUNT_TIME_1: 89.00,        // 94.34 ÷ 1.06
+  DISCOUNT_TIME_0: 83.96,        // 89.00 ÷ 1.06
+
+  // Calculation tolerance
+  TOLERANCE: 0.05,               // ±$0.05 for answer checking
+};
+
+// ============================================================================
+// COLORS (Yale Blue Theme)
+// ============================================================================
+
+const COLORS = {
+  // Core Yale blue
+  primary: '#00356b',
+  primaryLight: '#1a4a7a',
+  primaryDark: '#002548',
+
+  // Backgrounds
+  background: '#f8fafc',
+  surface: '#ffffff',
+  surfaceAlt: '#f1f5f9',
+
+  // Borders
+  border: '#e2e8f0',
+  borderDark: '#cbd5e1',
+
+  // Text
+  textPrimary: '#1e293b',
+  textSecondary: '#64748b',
+  textMuted: '#94a3b8',
+
+  // Accent colors
+  accent: '#0369a1',
+  accentLight: '#e0f2fe',
+
+  // Gold for insights
+  gold: '#ca8a04',
+  goldLight: '#fef9c3',
+  goldBorder: '#eab308',
+
+  // Feedback
+  success: '#16a34a',
+  successBg: '#f0fdf4',
+  successBorder: '#86efac',
+
+  warning: '#d97706',
+  warningBg: '#fffbeb',
+  warningBorder: '#fcd34d',
+
+  error: '#dc2626',
+  errorBg: '#fef2f2',
+
+  // Rabbit holes (purple theme)
+  rabbitHole: '#7c3aed',
+  rabbitHoleLight: '#ede9fe',
+  rabbitHoleBorder: '#a78bfa',
+};
+
+// ============================================================================
+// TUTORIAL STRUCTURE
+// ============================================================================
+
+const PARTS = [
+  { id: 'recap', title: 'Where We Left Off', steps: 1 },
+  { id: 'theMachine', title: 'The Machine', steps: 4 },
+  { id: 'walkingForward', title: 'Walking Forward', steps: 5 },
+  { id: 'walkingBackward', title: 'Walking Backward', steps: 4 },
+  { id: 'theInsight', title: 'The Insight', steps: 4 },
+];
+
+// ============================================================================
+// RABBIT HOLES DATA
+// ============================================================================
+
+const RABBIT_HOLES = {
+  irvingFisher: {
+    id: 'irvingFisher',
+    title: 'Irving Fisher: Genius Who Went Broke',
+    partId: 'walkingForward',
+    content: `Irving Fisher (1867–1947) was a Yale economist who essentially invented the modern theory of present value and interest rates. His 1930 book "The Theory of Interest" remains foundational to everything we're learning here.
+
+Here's the twist: Fisher was also a stock market speculator. In 1929, just before the crash, he famously declared that stock prices had reached "a permanently high plateau." He lost his fortune in the crash and had to be bailed out by Yale and relatives.
+
+This isn't a story about Fisher being stupid — he was brilliant. It's a reminder that understanding financial theory doesn't immunize you from financial mistakes. Even the person who invented present value calculations couldn't predict the market.
+
+The math we're learning is powerful. But it's a tool for thinking, not a crystal ball.`
+  },
+
+  frictionless: {
+    id: 'frictionless',
+    title: 'The Frictionless Assumption',
+    partId: 'theMachine',
+    content: `Throughout this tutorial, we assume everyone can borrow and lend at the same 6% rate. This assumption is doing a lot of work!
+
+In reality:
+
+• Banks charge higher rates for borrowing than they pay for deposits
+• Your credit score affects your borrowing rate
+• Transaction costs exist for moving money
+• Not everyone has equal access to borrowing and lending
+
+Why does equal access matter so much? If the hungry person can only borrow at 10% while the full person can lend at 6%, they'll STILL disagree about value — just like before we introduced borrowing and lending at all.
+
+The "frictionless" assumption isn't just a simplification. It's actually required for objective value measurement to work. This explains why financial crises are so disruptive: when different people suddenly face very different terms, the shared framework for measuring value breaks down.`
+  },
+
+  crisis2008: {
+    id: 'crisis2008',
+    title: 'When Assumptions Fail: 2008',
+    partId: 'theInsight',
+    content: `In 2008, the global financial system nearly collapsed. One key reason: the assumptions underlying financial models failed simultaneously.
+
+The "frictionless" assumption broke down catastrophically. Banks that normally lent to each other suddenly refused. The "shadow banking system" — all the non-bank financial institutions — froze. People with good credit couldn't get loans.
+
+As the professor explains: "As long as the world continues in a way that's consistent with your assumptions, you may never even know you made them. But if a big enough change happens, you get slapped upside the head."
+
+The models weren't wrong about the math. They were wrong about assuming the math would always apply. This is why understanding assumptions matters as much as understanding calculations.`
+  },
+};
+
+// ============================================================================
+// GLOSSARY DATA
+// ============================================================================
+
+const GLOSSARY = {
+  presentValue: {
+    term: 'Present Value (PV)',
+    definition: 'The value today of a future amount of money, discounted at a given interest rate. What future money is worth right now.',
+  },
+  futureValue: {
+    term: 'Future Value (FV)',
+    definition: 'The value at a future date of money invested today, grown at a given interest rate. What current money will be worth later.',
+  },
+  compounding: {
+    term: 'Compounding',
+    definition: 'Growing money forward through time by multiplying by (1 + r) for each period. "Walking forward" on the timeline.',
+  },
+  discounting: {
+    term: 'Discounting',
+    definition: 'Finding what future money is worth today by dividing by (1 + r) for each period. "Walking backward" on the timeline.',
+  },
+  interestRate: {
+    term: 'Interest Rate (r)',
+    definition: 'The price of borrowing money through time, expressed as a percentage per period. Also the reward for lending.',
+  },
+};
+
+// ============================================================================
+// SOUND SYSTEM
+// ============================================================================
+
+const playSound = (type) => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    switch (type) {
+      case 'success':
+        // Rising three-note chime (C-E-G)
+        oscillator.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+        oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
+        oscillator.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2); // G5
+        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.4);
+        break;
+
+      case 'softNope':
+        // Falling two-note (G-E)
+        oscillator.frequency.setValueAtTime(783.99, ctx.currentTime); // G5
+        oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15); // E5
+        gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.3);
+        break;
+
+      case 'click':
+        // Quick click
+        oscillator.frequency.setValueAtTime(600, ctx.currentTime);
+        gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.08);
+        break;
+
+      case 'rabbitHole':
+        // Whimsical single tone with slight vibrato
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, ctx.currentTime); // A5
+        oscillator.frequency.setValueAtTime(932.33, ctx.currentTime + 0.05); // A#5
+        oscillator.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.25);
+        break;
+
+      case 'insight':
+        // Gentle ascending arpeggio for insights
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(440, ctx.currentTime); // A4
+        oscillator.frequency.setValueAtTime(554.37, ctx.currentTime + 0.15); // C#5
+        oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.3); // E5
+        oscillator.frequency.setValueAtTime(880, ctx.currentTime + 0.45); // A5
+        gainNode.gain.setValueAtTime(0.25, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.6);
+        break;
+
+      default:
+        break;
+    }
+
+    setTimeout(() => ctx.close(), 700);
+  } catch (e) {
+    // Fail silently if audio not available
+    console.log('Audio not available');
+  }
+};
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
+
+const parseUserInput = (input) => {
+  // Remove $, commas, and whitespace
+  const cleaned = input.replace(/[$,\s]/g, '');
+  return parseFloat(cleaned);
+};
+
+const checkAnswer = (userValue, correctValue, tolerance = CONSTANTS.TOLERANCE) => {
+  return Math.abs(userValue - correctValue) <= tolerance;
+};
+
+const calculateProgress = (currentPartIndex, currentStep) => {
+  const totalSteps = PARTS.reduce((sum, p) => sum + p.steps, 0);
+  const completedSteps = PARTS.slice(0, currentPartIndex).reduce((sum, p) => sum + p.steps, 0) + currentStep;
+
+  // On the very last step of the very last part, show 100%
+  const isLastStep = currentPartIndex === PARTS.length - 1 && currentStep === PARTS[PARTS.length - 1].steps - 1;
+  if (isLastStep) return 100;
+
+  return Math.round((completedSteps / totalSteps) * 100);
+};
+
+// ============================================================================
+// UI COMPONENTS
+// ============================================================================
+
+// --- Header Component ---
+const Header = ({
+  currentPartIndex,
+  currentStep,
+  exploredRabbitHoles,
+  totalRabbitHoles,
+  onGlossaryClick,
+  onRestartClick,
+  onHeaderClick,
+  soundEnabled,
+  onSoundToggle
+}) => {
+  const progress = calculateProgress(currentPartIndex, currentStep);
+  const currentPart = PARTS[currentPartIndex];
+
+  return (
+    <header style={{
+      background: COLORS.primary,
+      color: 'white',
+      padding: '16px 24px',
+      position: 'sticky',
+      top: 0,
+      zIndex: 100,
+    }}>
+      <div style={{
+        maxWidth: '800px',
+        margin: '0 auto',
+      }}>
+        {/* Title Row */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '12px',
+        }}>
+          <h1
+            onClick={onHeaderClick}
+            style={{
+              fontSize: '18px',
+              fontWeight: '600',
+              margin: 0,
+              cursor: 'default',
+              userSelect: 'none',
+            }}
+          >
+            Tutorial 02B: The Machine
+          </h1>
+
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {/* Sound Toggle */}
+            <button
+              onClick={onSoundToggle}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px',
+                cursor: 'pointer',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+            >
+              {soundEnabled ? <LucideIcon name="Volume2" size={18} /> : <LucideIcon name="VolumeX" size={18} />}
+            </button>
+
+            {/* Rabbit Hole Counter */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: COLORS.rabbitHoleLight,
+              color: COLORS.rabbitHole,
+              padding: '4px 10px',
+              borderRadius: '12px',
+              fontSize: '13px',
+              fontWeight: '500',
+            }}>
+              <LucideIcon name="Rabbit" size={14} />
+              <span>{exploredRabbitHoles.length}/{totalRabbitHoles}</span>
+            </div>
+
+            {/* Glossary Button */}
+            <button
+              onClick={onGlossaryClick}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px',
+                cursor: 'pointer',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title="Glossary"
+            >
+              <LucideIcon name="BookOpen" size={18} />
+            </button>
+
+            {/* Restart Button */}
+            <button
+              onClick={onRestartClick}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '6px',
+                cursor: 'pointer',
+                color: 'white',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+              title="Restart tutorial"
+            >
+              <LucideIcon name="RotateCcw" size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Progress Section */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: '13px',
+          opacity: 0.9,
+          marginBottom: '8px',
+        }}>
+          <span>Part {currentPartIndex + 1}: {currentPart.title}</span>
+          <span>{progress}% complete</span>
+        </div>
+
+        {/* Progress Bar */}
+        <div style={{
+          height: '4px',
+          background: 'rgba(255,255,255,0.2)',
+          borderRadius: '2px',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${progress}%`,
+            background: 'white',
+            borderRadius: '2px',
+            transition: 'width 0.3s ease',
+          }} />
+        </div>
+      </div>
+    </header>
+  );
+};
+
+// --- Navigation Buttons ---
+const NavButtons = ({ onBack, onContinue, canGoBack, canContinue, soundEnabled, continueLabel = 'Continue' }) => {
+  const handleContinue = () => {
+    if (soundEnabled) playSound('click');
+    onContinue();
+  };
+
+  const handleBack = () => {
+    if (soundEnabled) playSound('click');
+    onBack();
+  };
+
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      marginTop: '32px',
+      paddingTop: '24px',
+      borderTop: `1px solid ${COLORS.border}`,
+    }}>
+      {canGoBack ? (
+        <button
+          onClick={handleBack}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '12px 20px',
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: '8px',
+            background: 'white',
+            color: COLORS.textSecondary,
+            fontSize: '15px',
+            cursor: 'pointer',
+          }}
+        >
+          <LucideIcon name="ChevronLeft" size={18} />
+          Back
+        </button>
+      ) : (
+        <div />
+      )}
+
+      <button
+        onClick={handleContinue}
+        disabled={!canContinue}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '12px 24px',
+          border: 'none',
+          borderRadius: '8px',
+          background: canContinue ? COLORS.primary : COLORS.border,
+          color: canContinue ? 'white' : COLORS.textMuted,
+          fontSize: '15px',
+          fontWeight: '500',
+          cursor: canContinue ? 'pointer' : 'not-allowed',
+        }}
+      >
+        {continueLabel}
+        <LucideIcon name="ChevronRight" size={18} />
+      </button>
+    </div>
+  );
+};
+
+// --- Choice Button for Multiple Choice ---
+const ChoiceButton = ({ label, selected, correct, submitted, onClick, disabled }) => {
+  let background = 'white';
+  let borderColor = COLORS.border;
+  let textColor = COLORS.textPrimary;
+
+  if (selected && !submitted) {
+    background = COLORS.accentLight;
+    borderColor = COLORS.accent;
+  } else if (submitted && selected && correct) {
+    background = COLORS.successBg;
+    borderColor = COLORS.successBorder;
+  } else if (submitted && selected && !correct) {
+    background = COLORS.warningBg;
+    borderColor = COLORS.warningBorder;
+  } else if (submitted && correct) {
+    background = COLORS.successBg;
+    borderColor = COLORS.successBorder;
+  } else if (submitted) {
+    textColor = COLORS.textMuted;
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled || submitted}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        width: '100%',
+        padding: '14px 16px',
+        border: `2px solid ${borderColor}`,
+        borderRadius: '10px',
+        background,
+        color: textColor,
+        fontSize: '15px',
+        textAlign: 'left',
+        cursor: disabled || submitted ? 'default' : 'pointer',
+        marginBottom: '10px',
+        transition: 'all 0.2s ease',
+      }}
+    >
+      {submitted && correct && <LucideIcon name="Check" size={20} color={COLORS.success} />}
+      {submitted && selected && !correct && <LucideIcon name="X" size={20} color={COLORS.warning} />}
+      {!submitted && <div style={{
+        width: '20px',
+        height: '20px',
+        borderRadius: '50%',
+        border: `2px solid ${selected ? COLORS.accent : COLORS.border}`,
+        background: selected ? COLORS.accent : 'white',
+      }} />}
+      <span>{label}</span>
+    </button>
+  );
+};
+
+// --- Calculation Box ---
+const CalculationBox = ({
+  prompt,
+  correctAnswer,
+  hint1,
+  hint2,
+  onCorrect,
+  soundEnabled,
+  tolerance = CONSTANTS.TOLERANCE,
+  formula = null
+}) => {
+  const [input, setInput] = useState('');
+  const [attempts, setAttempts] = useState(0);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [showHint, setShowHint] = useState(null);
+
+  const handleCheck = () => {
+    const userValue = parseUserInput(input);
+
+    if (isNaN(userValue)) {
+      setShowHint('Please enter a valid number');
+      return;
+    }
+
+    if (checkAnswer(userValue, correctAnswer, tolerance)) {
+      setIsCorrect(true);
+      if (soundEnabled) playSound('success');
+      onCorrect?.();
+    } else {
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      if (soundEnabled) playSound('softNope');
+
+      if (newAttempts >= 3) {
+        setShowHint(`The answer is ${formatCurrency(correctAnswer)}`);
+        setIsCorrect(true); // Allow progression
+        onCorrect?.();
+      } else if (newAttempts === 2 && hint2) {
+        setShowHint(hint2);
+      } else if (hint1) {
+        setShowHint(hint1);
+      }
+    }
+  };
+
+  return (
+    <div style={{
+      background: COLORS.surfaceAlt,
+      border: `1px solid ${COLORS.border}`,
+      borderRadius: '12px',
+      padding: '20px',
+      marginTop: '16px',
+    }}>
+      <p style={{
+        margin: '0 0 12px 0',
+        fontSize: '15px',
+        color: COLORS.textPrimary,
+        lineHeight: '1.5',
+      }}>
+        {prompt}
+      </p>
+
+      {formula && (
+        <p style={{
+          margin: '0 0 16px 0',
+          fontFamily: 'monospace',
+          fontSize: '14px',
+          color: COLORS.textSecondary,
+          background: 'white',
+          padding: '8px 12px',
+          borderRadius: '6px',
+          display: 'inline-block',
+        }}>
+          {formula}
+        </p>
+      )}
+
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <span style={{
+            position: 'absolute',
+            left: '12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: COLORS.textMuted,
+          }}>$</span>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={isCorrect}
+            placeholder="0.00"
+            style={{
+              width: '100%',
+              padding: '12px 12px 12px 28px',
+              border: `2px solid ${isCorrect ? COLORS.successBorder : COLORS.border}`,
+              borderRadius: '8px',
+              fontSize: '16px',
+              fontFamily: 'monospace',
+              background: isCorrect ? COLORS.successBg : 'white',
+              boxSizing: 'border-box',
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && !isCorrect && handleCheck()}
+          />
+        </div>
+
+        <button
+          onClick={handleCheck}
+          disabled={isCorrect || !input}
+          style={{
+            padding: '12px 20px',
+            border: 'none',
+            borderRadius: '8px',
+            background: isCorrect ? COLORS.success : COLORS.primary,
+            color: 'white',
+            fontSize: '15px',
+            fontWeight: '500',
+            cursor: isCorrect || !input ? 'default' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+        >
+          {isCorrect ? <LucideIcon name="Check" size={18} /> : 'Check'}
+        </button>
+      </div>
+
+      {showHint && (
+        <p style={{
+          marginTop: '12px',
+          padding: '10px 12px',
+          background: isCorrect && attempts >= 3 ? COLORS.warningBg : COLORS.accentLight,
+          borderRadius: '6px',
+          fontSize: '14px',
+          color: isCorrect && attempts >= 3 ? COLORS.warning : COLORS.accent,
+        }}>
+          {showHint}
+        </p>
+      )}
+    </div>
+  );
+};
+
+// --- Insight Box ---
+const InsightBox = ({ children, icon, soundEnabled, playOnMount = false }) => {
+  React.useEffect(() => {
+    if (playOnMount && soundEnabled) {
+      playSound('insight');
+    }
+  }, [playOnMount, soundEnabled]);
+
+  return (
+    <div style={{
+      background: COLORS.goldLight,
+      border: `2px solid ${COLORS.goldBorder}`,
+      borderRadius: '12px',
+      padding: '20px',
+      marginTop: '20px',
+      marginBottom: '20px',
+    }}>
+      <div style={{
+        display: 'flex',
+        gap: '12px',
+        alignItems: 'flex-start',
+      }}>
+        {icon || <LucideIcon name="Lightbulb" size={24} color={COLORS.gold} style={{ flexShrink: 0, marginTop: '2px' }} />}
+        <div style={{
+          fontSize: '16px',
+          lineHeight: '1.6',
+          color: COLORS.textPrimary,
+        }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Visual Recap Box (for the "where we left off" step) ---
+const RecapBox = ({ children }) => (
+  <div style={{
+    background: COLORS.surfaceAlt,
+    border: `2px solid ${COLORS.border}`,
+    borderRadius: '12px',
+    padding: '24px',
+    marginTop: '16px',
+    marginBottom: '16px',
+  }}>
+    {children}
+  </div>
+);
+
+// --- Two Streams Visual (from 02A recap) ---
+const TwoStreamsVisual = () => (
+  <div style={{
+    display: 'flex',
+    gap: '24px',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginTop: '16px',
+    marginBottom: '16px',
+  }}>
+    {/* Stream A */}
+    <div style={{
+      background: 'white',
+      border: `2px solid ${COLORS.border}`,
+      borderRadius: '12px',
+      padding: '16px 24px',
+      textAlign: 'center',
+      minWidth: '180px',
+    }}>
+      <div style={{ fontSize: '14px', color: COLORS.textSecondary, marginBottom: '8px' }}>
+        Stream A
+      </div>
+      <div style={{ fontFamily: 'monospace', fontSize: '20px', fontWeight: '600', color: COLORS.primary }}>
+        $83.96 today
+      </div>
+    </div>
+
+    {/* Stream B */}
+    <div style={{
+      background: 'white',
+      border: `2px solid ${COLORS.border}`,
+      borderRadius: '12px',
+      padding: '16px 24px',
+      textAlign: 'center',
+      minWidth: '180px',
+    }}>
+      <div style={{ fontSize: '14px', color: COLORS.textSecondary, marginBottom: '8px' }}>
+        Stream B
+      </div>
+      <div style={{ fontFamily: 'monospace', fontSize: '20px', fontWeight: '600', color: COLORS.primary }}>
+        $100 in 3 periods
+      </div>
+    </div>
+  </div>
+);
+
+// --- The Machine Visual (Animated) ---
+const MachineVisual = ({ showBoth = false }) => {
+  const [lendAnimationPhase, setLendAnimationPhase] = useState(0);
+  const [borrowAnimationPhase, setBorrowAnimationPhase] = useState(0);
+
+  // Lending animation: $83.96 today → $100 later (left to right, present to future)
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setLendAnimationPhase(prev => (prev + 1) % 4);
+    }, 800);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Borrowing animation runs separately when showBoth is true
+  React.useEffect(() => {
+    if (showBoth) {
+      const timer = setInterval(() => {
+        setBorrowAnimationPhase(prev => (prev + 1) % 4);
+      }, 800);
+      return () => clearInterval(timer);
+    }
+  }, [showBoth]);
+
+  const getLendingDisplay = () => {
+    // Animation: show transformation from present ($83.96) to future ($100)
+    // Time flows left to right: today on left, later on right
+    switch (lendAnimationPhase) {
+      case 0: return { left: '$83.96', right: '?', highlight: 'left' };
+      case 1: return { left: '$83.96', right: '...', highlight: 'arrow' };
+      case 2: return { left: '$83.96', right: '$100', highlight: 'right' };
+      case 3: return { left: '$83.96', right: '$100', highlight: 'both' };
+      default: return { left: '$83.96', right: '$100', highlight: 'both' };
+    }
+  };
+
+  const getBorrowingDisplay = () => {
+    // Animation: show transformation from future ($100) to present ($83.96)
+    // IMPORTANT: Preserve time direction - today on left, later on right
+    // Arrow goes RIGHT to LEFT (from future back to present)
+    switch (borrowAnimationPhase) {
+      case 0: return { left: '?', right: '$100', highlight: 'right' };
+      case 1: return { left: '...', right: '$100', highlight: 'arrow' };
+      case 2: return { left: '$83.96', right: '$100', highlight: 'left' };
+      case 3: return { left: '$83.96', right: '$100', highlight: 'both' };
+      default: return { left: '$83.96', right: '$100', highlight: 'both' };
+    }
+  };
+
+  const lend = getLendingDisplay();
+  const borrow = getBorrowingDisplay();
+
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+      border: `2px solid ${COLORS.borderDark}`,
+      borderRadius: '16px',
+      padding: '24px',
+      marginTop: '20px',
+      marginBottom: '20px',
+    }}>
+      <div style={{
+        textAlign: 'center',
+        marginBottom: '20px',
+      }}>
+        <LucideIcon name="Building2" size={40} color={COLORS.primary} style={{ marginBottom: '8px' }} />
+        <div style={{ fontSize: '18px', fontWeight: '600', color: COLORS.primary }}>
+          The Opportunity
+        </div>
+        <div style={{ fontSize: '14px', color: COLORS.textSecondary }}>
+          Borrow or lend at 6% per period
+        </div>
+      </div>
+
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '16px',
+      }}>
+        {/* Lending direction: today → later (left to right) */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          background: 'white',
+          padding: '16px 24px',
+          borderRadius: '10px',
+          border: `1px solid ${COLORS.border}`,
+        }}>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}>
+            <span style={{
+              fontFamily: 'monospace',
+              fontSize: '18px',
+              fontWeight: '600',
+              color: lend.highlight === 'left' || lend.highlight === 'both' ? COLORS.success : COLORS.textPrimary,
+              transition: 'color 0.3s ease',
+            }}>
+              {lend.left}
+            </span>
+            <span style={{ fontSize: '11px', color: COLORS.textMuted }}>today</span>
+          </div>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            color: lend.highlight === 'arrow' ? COLORS.success : COLORS.textMuted,
+            transition: 'color 0.3s ease',
+          }}>
+            <span style={{ fontSize: '12px', marginRight: '4px' }}>×1.06³</span>
+            <LucideIcon name="ArrowRight" size={24} />
+          </div>
+
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}>
+            <span style={{
+              fontFamily: 'monospace',
+              fontSize: '18px',
+              fontWeight: '600',
+              color: lend.highlight === 'right' || lend.highlight === 'both' ? COLORS.success : COLORS.textPrimary,
+              transition: 'color 0.3s ease',
+            }}>
+              {lend.right}
+            </span>
+            <span style={{ fontSize: '11px', color: COLORS.textMuted }}>3 periods later</span>
+          </div>
+
+          <span style={{
+            fontSize: '12px',
+            color: COLORS.success,
+            marginLeft: '8px',
+            fontWeight: '500',
+          }}>
+            LEND
+          </span>
+        </div>
+
+        {/* Borrowing direction: later → today (right to left arrow, but positions preserved) */}
+        {showBoth && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: 'white',
+            padding: '16px 24px',
+            borderRadius: '10px',
+            border: `1px solid ${COLORS.border}`,
+          }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}>
+              <span style={{
+                fontFamily: 'monospace',
+                fontSize: '18px',
+                fontWeight: '600',
+                color: borrow.highlight === 'left' || borrow.highlight === 'both' ? COLORS.accent : COLORS.textPrimary,
+                transition: 'color 0.3s ease',
+              }}>
+                {borrow.left}
+              </span>
+              <span style={{ fontSize: '11px', color: COLORS.textMuted }}>today</span>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              color: borrow.highlight === 'arrow' ? COLORS.accent : COLORS.textMuted,
+              transition: 'color 0.3s ease',
+            }}>
+              <LucideIcon name="ArrowLeft" size={24} />
+              <span style={{ fontSize: '12px', marginLeft: '4px' }}>÷1.06³</span>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}>
+              <span style={{
+                fontFamily: 'monospace',
+                fontSize: '18px',
+                fontWeight: '600',
+                color: borrow.highlight === 'right' || borrow.highlight === 'both' ? COLORS.accent : COLORS.textPrimary,
+                transition: 'color 0.3s ease',
+              }}>
+                {borrow.right}
+              </span>
+              <span style={{ fontSize: '11px', color: COLORS.textMuted }}>3 periods later</span>
+            </div>
+
+            <span style={{
+              fontSize: '12px',
+              color: COLORS.accent,
+              marginLeft: '8px',
+              fontWeight: '500',
+            }}>
+              BORROW
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// --- Compounding Visual (step by step) ---
+// revealedPeriods: how many periods have been revealed (0 = only Time 0 shown)
+const CompoundingVisual = ({ revealedPeriods = 0 }) => {
+  const values = [
+    { time: 0, value: CONSTANTS.PV },
+    { time: 1, value: CONSTANTS.TIME_1_VALUE },
+    { time: 2, value: CONSTANTS.TIME_2_VALUE },
+    { time: 3, value: CONSTANTS.FV },
+  ];
+
+  const isComplete = revealedPeriods === 3;
+
+  return (
+    <div style={{
+      background: COLORS.surfaceAlt,
+      borderRadius: '12px',
+      padding: '24px',
+      marginTop: '16px',
+      overflowX: 'auto',
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        minWidth: 'fit-content',
+      }}>
+        {values.map((item, i) => {
+          const isRevealed = i <= revealedPeriods;
+          const isHighlighted = i <= revealedPeriods;
+          const isDestination = isComplete && i === 3;
+
+          return (
+            <React.Fragment key={i}>
+              <div style={{
+                background: isDestination ? COLORS.gold : (isHighlighted ? COLORS.primary : 'white'),
+                color: isHighlighted ? 'white' : COLORS.textPrimary,
+                border: `2px solid ${isDestination ? COLORS.goldBorder : (isHighlighted ? COLORS.primary : COLORS.border)}`,
+                borderRadius: '10px',
+                padding: '12px 16px',
+                textAlign: 'center',
+                minWidth: '90px',
+                transition: 'all 0.3s ease',
+                boxShadow: isDestination ? '0 0 12px rgba(202, 138, 4, 0.4)' : 'none',
+              }}>
+                <div style={{
+                  fontFamily: 'monospace',
+                  fontSize: '16px',
+                  fontWeight: '600'
+                }}>
+                  {isRevealed ? formatCurrency(item.value) : '?'}
+                </div>
+                <div style={{
+                  fontSize: '12px',
+                  opacity: 0.8,
+                  marginTop: '4px'
+                }}>
+                  Time {item.time}
+                </div>
+              </div>
+
+              {i < values.length - 1 && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  color: i < revealedPeriods ? COLORS.primary : COLORS.textMuted,
+                  transition: 'color 0.3s ease',
+                }}>
+                  <span style={{ fontSize: '12px', marginBottom: '2px' }}>
+                    ×1.06
+                  </span>
+                  <LucideIcon name="ArrowRight" size={20} />
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// --- Discounting Visual (step by step) ---
+// revealedPeriods: how many periods back from Time 3 have been revealed (0 = only Time 3 shown)
+const DiscountingVisual = ({ revealedPeriods = 0 }) => {
+  const values = [
+    { time: 0, value: CONSTANTS.PV },
+    { time: 1, value: CONSTANTS.TIME_1_VALUE },
+    { time: 2, value: CONSTANTS.TIME_2_VALUE },
+    { time: 3, value: CONSTANTS.FV },
+  ];
+
+  // For discounting, we reveal from the right (Time 3 first, then Time 2, etc.)
+  // revealedPeriods = 0 means only Time 3 is shown
+  // revealedPeriods = 1 means Time 3 and Time 2 are shown
+  // etc.
+  const revealFromIndex = 3 - revealedPeriods;
+  const isComplete = revealedPeriods === 3;
+
+  return (
+    <div style={{
+      background: COLORS.surfaceAlt,
+      borderRadius: '12px',
+      padding: '24px',
+      marginTop: '16px',
+      overflowX: 'auto',
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        minWidth: 'fit-content',
+      }}>
+        {values.map((item, i) => {
+          const isRevealed = i >= revealFromIndex;
+          const isHighlighted = i >= revealFromIndex;
+          const isDestination = isComplete && i === 0;
+
+          return (
+            <React.Fragment key={i}>
+              <div style={{
+                background: isDestination ? COLORS.gold : (isHighlighted ? COLORS.primary : 'white'),
+                color: isHighlighted ? 'white' : COLORS.textPrimary,
+                border: `2px solid ${isDestination ? COLORS.goldBorder : (isHighlighted ? COLORS.primary : COLORS.border)}`,
+                borderRadius: '10px',
+                padding: '12px 16px',
+                textAlign: 'center',
+                minWidth: '90px',
+                transition: 'all 0.3s ease',
+                boxShadow: isDestination ? '0 0 12px rgba(202, 138, 4, 0.4)' : 'none',
+              }}>
+                <div style={{
+                  fontFamily: 'monospace',
+                  fontSize: '16px',
+                  fontWeight: '600'
+                }}>
+                  {isRevealed ? formatCurrency(item.value) : '?'}
+                </div>
+                <div style={{
+                  fontSize: '12px',
+                  opacity: 0.8,
+                  marginTop: '4px'
+                }}>
+                  Time {item.time}
+                </div>
+              </div>
+
+              {i < values.length - 1 && (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  color: (i >= revealFromIndex - 1 && i < 3) ? COLORS.primary : COLORS.textMuted,
+                  transition: 'color 0.3s ease',
+                }}>
+                  <LucideIcon name="ArrowLeft" size={20} />
+                  <span style={{ fontSize: '12px', marginTop: '2px' }}>
+                    ÷1.06
+                  </span>
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// --- Rabbit Hole Button ---
+const RabbitHoleButton = ({
+  rabbitHole,
+  explored,
+  onClick,
+  soundEnabled
+}) => {
+  const handleClick = () => {
+    if (soundEnabled) playSound('rabbitHole');
+    onClick();
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        width: '100%',
+        padding: '14px 16px',
+        border: `2px dashed ${COLORS.rabbitHoleBorder}`,
+        borderRadius: '10px',
+        background: explored ? COLORS.rabbitHoleLight : 'white',
+        color: COLORS.rabbitHole,
+        cursor: 'pointer',
+        fontSize: '14px',
+        textAlign: 'left',
+        marginTop: '16px',
+        transition: 'all 0.2s ease',
+      }}
+    >
+      <LucideIcon name="Rabbit" size={20} style={{ flexShrink: 0 }} />
+      <span style={{ flex: 1 }}>
+        <span style={{ opacity: 0.7 }}>Optional: </span>
+        {rabbitHole.title}
+      </span>
+      {explored && <LucideIcon name="Check" size={18} />}
+    </button>
+  );
+};
+
+// --- Rabbit Hole Modal ---
+const RabbitHoleModal = ({ rabbitHole, onClose }) => {
+  if (!rabbitHole) return null;
+
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px',
+      zIndex: 1000,
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '16px',
+        maxWidth: '600px',
+        maxHeight: '80vh',
+        overflow: 'auto',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+      }}>
+        {/* Header */}
+        <div style={{
+          background: COLORS.rabbitHole,
+          color: 'white',
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+        }}>
+          <LucideIcon name="Rabbit" size={24} />
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+            {rabbitHole.title}
+          </h2>
+        </div>
+
+        {/* Content */}
+        <div style={{
+          padding: '24px',
+          fontSize: '15px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          whiteSpace: 'pre-line',
+        }}>
+          {rabbitHole.content}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: '16px 24px',
+          borderTop: `1px solid ${COLORS.border}`,
+          display: 'flex',
+          justifyContent: 'flex-end',
+        }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '10px 24px',
+              border: 'none',
+              borderRadius: '8px',
+              background: COLORS.rabbitHole,
+              color: 'white',
+              fontSize: '15px',
+              fontWeight: '500',
+              cursor: 'pointer',
+            }}
+          >
+            Back to Tutorial
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Glossary Modal ---
+const GlossaryModal = ({ onClose }) => (
+  <div style={{
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '20px',
+    zIndex: 1000,
+  }}>
+    <div style={{
+      background: 'white',
+      borderRadius: '16px',
+      maxWidth: '600px',
+      maxHeight: '80vh',
+      overflow: 'auto',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+    }}>
+      {/* Header */}
+      <div style={{
+        background: COLORS.primary,
+        color: 'white',
+        padding: '20px 24px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+      }}>
+        <LucideIcon name="BookOpen" size={24} />
+        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+          Glossary
+        </h2>
+      </div>
+
+      {/* Content */}
+      <div style={{ padding: '24px' }}>
+        {Object.values(GLOSSARY).map((entry, index) => (
+          <div key={entry.term} style={{
+            marginBottom: index < Object.values(GLOSSARY).length - 1 ? '20px' : 0,
+            paddingBottom: index < Object.values(GLOSSARY).length - 1 ? '20px' : 0,
+            borderBottom: index < Object.values(GLOSSARY).length - 1 ? `1px solid ${COLORS.border}` : 'none',
+          }}>
+            <h3 style={{
+              margin: '0 0 8px 0',
+              fontSize: '16px',
+              fontWeight: '600',
+              color: COLORS.primary,
+            }}>
+              {entry.term}
+            </h3>
+            <p style={{
+              margin: 0,
+              fontSize: '14px',
+              lineHeight: '1.6',
+              color: COLORS.textSecondary,
+            }}>
+              {entry.definition}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div style={{
+        padding: '16px 24px',
+        borderTop: `1px solid ${COLORS.border}`,
+        display: 'flex',
+        justifyContent: 'flex-end',
+      }}>
+        <button
+          onClick={onClose}
+          style={{
+            padding: '10px 24px',
+            border: 'none',
+            borderRadius: '8px',
+            background: COLORS.primary,
+            color: 'white',
+            fontSize: '15px',
+            fontWeight: '500',
+            cursor: 'pointer',
+          }}
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// --- Restart Confirm Modal ---
+const RestartConfirmModal = ({ onConfirm, onCancel }) => (
+  <div style={{
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '20px',
+    zIndex: 1000,
+  }}>
+    <div style={{
+      background: 'white',
+      borderRadius: '16px',
+      maxWidth: '400px',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+      overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        background: COLORS.warning,
+        color: 'white',
+        padding: '20px 24px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+      }}>
+        <LucideIcon name="RotateCcw" size={24} />
+        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+          Restart Tutorial?
+        </h2>
+      </div>
+
+      {/* Content */}
+      <div style={{ padding: '24px' }}>
+        <p style={{
+          margin: 0,
+          fontSize: '15px',
+          lineHeight: '1.6',
+          color: COLORS.textPrimary,
+        }}>
+          Are you sure you want to restart? All your progress will be lost, including completed calculations and explored rabbit holes.
+        </p>
+      </div>
+
+      {/* Footer */}
+      <div style={{
+        padding: '16px 24px',
+        borderTop: `1px solid ${COLORS.border}`,
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '12px',
+      }}>
+        <button
+          onClick={onCancel}
+          style={{
+            padding: '10px 20px',
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: '8px',
+            background: 'white',
+            color: COLORS.textPrimary,
+            fontSize: '15px',
+            fontWeight: '500',
+            cursor: 'pointer',
+          }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onConfirm}
+          style={{
+            padding: '10px 20px',
+            border: 'none',
+            borderRadius: '8px',
+            background: COLORS.warning,
+            color: 'white',
+            fontSize: '15px',
+            fontWeight: '500',
+            cursor: 'pointer',
+          }}
+        >
+          Yes, Restart
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// --- Dev Mode Panel ---
+const DevModePanel = ({ onJumpToPart, currentPartIndex, onClose }) => (
+  <div style={{
+    position: 'fixed',
+    bottom: '20px',
+    right: '20px',
+    background: 'white',
+    borderRadius: '12px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+    padding: '16px',
+    zIndex: 999,
+    minWidth: '200px',
+  }}>
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '12px',
+    }}>
+      <span style={{
+        fontSize: '13px',
+        fontWeight: '600',
+        color: COLORS.warning,
+      }}>
+        Dev Mode
+      </span>
+      <button
+        onClick={onClose}
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          color: COLORS.textMuted,
+          padding: '4px',
+        }}
+      >
+        <LucideIcon name="X" size={16} />
+      </button>
+    </div>
+
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      {PARTS.map((part, index) => (
+        <button
+          key={part.id}
+          onClick={() => onJumpToPart(index)}
+          style={{
+            padding: '8px 12px',
+            border: `1px solid ${index === currentPartIndex ? COLORS.warning : COLORS.border}`,
+            borderRadius: '6px',
+            background: index === currentPartIndex ? COLORS.warningBg : 'white',
+            color: COLORS.textPrimary,
+            fontSize: '13px',
+            textAlign: 'left',
+            cursor: 'pointer',
+          }}
+        >
+          {index + 1}. {part.title}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+// ============================================================================
+// PART RENDERERS
+// ============================================================================
+
+// --- Part 0: Recap (Where We Left Off) ---
+const RecapPart = ({ step, onComplete, soundEnabled }) => {
+  return (
+    <div>
+      <h2 style={{
+        margin: '0 0 16px 0',
+        color: COLORS.primary,
+        fontSize: '24px',
+      }}>
+        Where We Left Off
+      </h2>
+
+      <p style={{
+        fontSize: '16px',
+        lineHeight: '1.7',
+        color: COLORS.textPrimary,
+        marginBottom: '16px',
+      }}>
+        In Part A, we discovered a puzzle. We had two cash flow streams:
+      </p>
+
+      <TwoStreamsVisual />
+
+      <p style={{
+        fontSize: '16px',
+        lineHeight: '1.7',
+        color: COLORS.textPrimary,
+        marginBottom: '16px',
+      }}>
+        And we asked: <strong>which is worth more?</strong>
+      </p>
+
+      <p style={{
+        fontSize: '16px',
+        lineHeight: '1.7',
+        color: COLORS.textPrimary,
+        marginBottom: '16px',
+      }}>
+        The answer depended on who you asked. A hungry person needing to eat preferred the money today. A full person with no immediate needs might prefer to wait.
+      </p>
+
+      <RecapBox>
+        <p style={{
+          margin: 0,
+          fontSize: '16px',
+          lineHeight: '1.7',
+          color: COLORS.textPrimary,
+          fontStyle: 'italic',
+        }}>
+          "Without the ability to borrow or lend, value depends on who's measuring. The hungry person and the full person are both right — they just want different things. There's no single number that captures 'the value' of a cash flow stream."
+        </p>
+      </RecapBox>
+
+      <p style={{
+        fontSize: '16px',
+        lineHeight: '1.7',
+        color: COLORS.textPrimary,
+      }}>
+        Now let's see what changes when we expand their opportunities.
+      </p>
+    </div>
+  );
+};
+
+// --- Part 1: The Machine ---
+const TheMachinePart = ({ step, onComplete, soundEnabled, exploredRabbitHoles, onRabbitHoleClick }) => {
+  const renderStep = () => {
+    switch (step) {
+      case 0:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              Now let's give our hungry person and full person access to <strong>borrowing and lending</strong> — at the same rate: <strong>6% per period</strong>.
+            </p>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+            }}>
+              Here's what's crucial: we're assuming <em>everyone</em> has access to the <em>same</em> opportunities. The hungry person and the full person can both borrow at 6%, and both can lend at 6%.
+            </p>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginTop: '16px',
+            }}>
+              This is a strong assumption. In reality, different people face different rates. But let's see what becomes possible when everyone faces the same terms.
+            </p>
+
+            <RabbitHoleButton
+              rabbitHole={RABBIT_HOLES.frictionless}
+              explored={exploredRabbitHoles.includes('frictionless')}
+              onClick={() => onRabbitHoleClick('frictionless')}
+              soundEnabled={soundEnabled}
+            />
+          </>
+        );
+
+      case 1:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              Here's the key idea:
+            </p>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              If you have <strong>$83.96 today</strong> and you'd rather have $100 later — <em>you can</em>. Just lend it at 6% per period for 3 periods.
+            </p>
+
+            <MachineVisual showBoth={false} />
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+            }}>
+              This opportunity acts like a machine that transforms money through time.
+            </p>
+          </>
+        );
+
+      case 2:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              And it works the other direction too:
+            </p>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              If you have <strong>$100 coming later</strong> and you'd rather have cash now — <em>you can</em>. Just borrow against it. You'll owe $100 later, which your future payment will cover.
+            </p>
+
+            <MachineVisual showBoth={true} />
+          </>
+        );
+
+      case 3:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              Think about what this means:
+            </p>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              It doesn't matter whether you're hungry or full. It doesn't matter whether you need money now or later. <strong>Anyone</strong> can transform either stream into the other.
+            </p>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+            }}>
+              But first, we need to understand exactly how the math works. Let's start by "walking forward" — seeing how money grows when you lend it.
+            </p>
+          </>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div>
+      <h2 style={{
+        margin: '0 0 16px 0',
+        color: COLORS.primary,
+        fontSize: '24px',
+      }}>
+        The Machine
+      </h2>
+      {renderStep()}
+    </div>
+  );
+};
+
+// --- Part 2: Walking Forward (Compounding) ---
+const WalkingForwardPart = ({ step, onComplete, soundEnabled, exploredRabbitHoles, onRabbitHoleClick, completedCalcs, onCalcComplete }) => {
+  // Calculate how many periods have been revealed based on completed calculations
+  const getRevealedPeriods = () => {
+    if (completedCalcs.forward3) return 3;
+    if (completedCalcs.forward2) return 2;
+    if (completedCalcs.forward1) return 1;
+    return 0;
+  };
+
+  const revealedPeriods = getRevealedPeriods();
+
+  const renderStep = () => {
+    switch (step) {
+      case 0:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              Let's start with $83.96 at Time 0 and see what happens when we lend it at 6% per period.
+            </p>
+
+            <CompoundingVisual revealedPeriods={0} />
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+            }}>
+              Each period, your money grows by 6%. To grow money forward one period, we <strong>multiply</strong> by (1 + 0.06) = 1.06.
+            </p>
+          </>
+        );
+
+      case 1:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              <strong>Step 1:</strong> From Time 0 to Time 1
+            </p>
+
+            <CompoundingVisual revealedPeriods={completedCalcs.forward1 ? 1 : 0} />
+
+            <CalculationBox
+              key="forward1"
+              prompt="What is $83.96 × 1.06?"
+              formula="$83.96 × 1.06 = ?"
+              correctAnswer={CONSTANTS.TIME_1_VALUE}
+              hint1="Multiply the starting amount by 1.06"
+              hint2="83.96 × 1.06 = 88.9976, which rounds to..."
+              onCorrect={() => onCalcComplete('forward1')}
+              soundEnabled={soundEnabled}
+            />
+          </>
+        );
+
+      case 2:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              <strong>Step 2:</strong> From Time 1 to Time 2
+            </p>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              Now we have $89.00 at Time 1. Let's grow it forward another period.
+            </p>
+
+            <CompoundingVisual revealedPeriods={completedCalcs.forward2 ? 2 : 1} />
+
+            <CalculationBox
+              key="forward2"
+              prompt="What is $89.00 × 1.06?"
+              formula="$89.00 × 1.06 = ?"
+              correctAnswer={CONSTANTS.TIME_2_VALUE}
+              hint1="Same process: multiply by 1.06"
+              hint2="89.00 × 1.06 = 94.34"
+              onCorrect={() => onCalcComplete('forward2')}
+              soundEnabled={soundEnabled}
+            />
+          </>
+        );
+
+      case 3:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              <strong>Step 3:</strong> From Time 2 to Time 3
+            </p>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              One more step! We have $94.34 at Time 2.
+            </p>
+
+            <CompoundingVisual revealedPeriods={completedCalcs.forward3 ? 3 : 2} />
+
+            <CalculationBox
+              key="forward3"
+              prompt="What is $94.34 × 1.06?"
+              formula="$94.34 × 1.06 = ?"
+              correctAnswer={CONSTANTS.FV}
+              hint1="One more multiplication by 1.06"
+              hint2="94.34 × 1.06 = 99.9204 ≈ $100.00"
+              onCorrect={() => onCalcComplete('forward3')}
+              soundEnabled={soundEnabled}
+            />
+          </>
+        );
+
+      case 4:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              We've just demonstrated <strong>compounding</strong> — growing money forward through time by repeatedly multiplying by (1 + r).
+            </p>
+
+            <CompoundingVisual revealedPeriods={3} />
+
+            <InsightBox soundEnabled={soundEnabled} playOnMount={true}>
+              <strong>Compounding:</strong> $83.96 × 1.06 × 1.06 × 1.06 = $100.00
+              <br /><br />
+              If you lend $83.96 at 6% per period for 3 periods, you end up with $100.
+            </InsightBox>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+            }}>
+              This is sometimes called "walking forward" on the timeline. Each step forward, multiply by 1.06.
+            </p>
+
+            <RabbitHoleButton
+              rabbitHole={RABBIT_HOLES.irvingFisher}
+              explored={exploredRabbitHoles.includes('irvingFisher')}
+              onClick={() => onRabbitHoleClick('irvingFisher')}
+              soundEnabled={soundEnabled}
+            />
+          </>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div>
+      <h2 style={{
+        margin: '0 0 16px 0',
+        color: COLORS.primary,
+        fontSize: '24px',
+      }}>
+        Walking Forward
+      </h2>
+      {renderStep()}
+    </div>
+  );
+};
+
+// --- Part 3: Walking Backward (Discounting) ---
+const WalkingBackwardPart = ({ step, onComplete, soundEnabled, completedCalcs, onCalcComplete }) => {
+  // For discounting, revealedPeriods means how many steps back from Time 3 we've revealed
+  // revealedPeriods=0 means only Time 3 is shown
+  // revealedPeriods=1 means Time 3 and Time 2 are shown
+  // etc.
+  const getRevealedPeriods = () => {
+    if (completedCalcs.back3) return 3;
+    if (completedCalcs.back2) return 2;
+    if (completedCalcs.back1) return 1;
+    return 0;
+  };
+
+  const renderStep = () => {
+    switch (step) {
+      case 0:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              Now let's go the other direction. Start with $100 at Time 3 and work backward to find what it's worth today.
+            </p>
+
+            <DiscountingVisual revealedPeriods={0} />
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+            }}>
+              If multiplying by 1.06 grows money forward, then <strong>dividing</strong> by 1.06 shrinks it backward. This makes intuitive sense: future money is worth less today.
+            </p>
+          </>
+        );
+
+      case 1:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              <strong>Step 1:</strong> From Time 3 back to Time 2
+            </p>
+
+            <DiscountingVisual revealedPeriods={completedCalcs.back1 ? 1 : 0} />
+
+            <CalculationBox
+              key="back1"
+              prompt="What is $100.00 ÷ 1.06?"
+              formula="$100.00 ÷ 1.06 = ?"
+              correctAnswer={CONSTANTS.DISCOUNT_TIME_2}
+              hint1="Divide by 1.06 to walk backward one period"
+              hint2="100 ÷ 1.06 = 94.34 (rounded)"
+              onCorrect={() => onCalcComplete('back1')}
+              soundEnabled={soundEnabled}
+            />
+          </>
+        );
+
+      case 2:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              <strong>Step 2:</strong> From Time 2 back to Time 1
+            </p>
+
+            <DiscountingVisual revealedPeriods={completedCalcs.back2 ? 2 : 1} />
+
+            <CalculationBox
+              key="back2"
+              prompt="What is $94.34 ÷ 1.06?"
+              formula="$94.34 ÷ 1.06 = ?"
+              correctAnswer={CONSTANTS.DISCOUNT_TIME_1}
+              hint1="Same process: divide by 1.06"
+              hint2="94.34 ÷ 1.06 = 89.00"
+              onCorrect={() => onCalcComplete('back2')}
+              soundEnabled={soundEnabled}
+            />
+          </>
+        );
+
+      case 3:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              <strong>Step 3:</strong> From Time 1 back to Time 0
+            </p>
+
+            <DiscountingVisual revealedPeriods={completedCalcs.back3 ? 3 : 2} />
+
+            <CalculationBox
+              key="back3"
+              prompt="What is $89.00 ÷ 1.06?"
+              formula="$89.00 ÷ 1.06 = ?"
+              correctAnswer={CONSTANTS.DISCOUNT_TIME_0}
+              hint1="One more division by 1.06"
+              hint2="89.00 ÷ 1.06 = 83.96"
+              onCorrect={() => onCalcComplete('back3')}
+              soundEnabled={soundEnabled}
+            />
+
+            {completedCalcs.back3 && (
+              <InsightBox soundEnabled={soundEnabled} playOnMount={true}>
+                <strong>Discounting:</strong> $100 ÷ 1.06 ÷ 1.06 ÷ 1.06 = $83.96
+                <br /><br />
+                This is "walking backward" on the timeline. $100 in 3 periods is worth $83.96 today.
+              </InsightBox>
+            )}
+          </>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div>
+      <h2 style={{
+        margin: '0 0 16px 0',
+        color: COLORS.primary,
+        fontSize: '24px',
+      }}>
+        Walking Backward
+      </h2>
+      {renderStep()}
+    </div>
+  );
+};
+
+// --- Part 4: The Insight ---
+const TheInsightPart = ({ step, onComplete, soundEnabled, exploredRabbitHoles, onRabbitHoleClick, insightChoice, onInsightChoice }) => {
+  const renderStep = () => {
+    switch (step) {
+      case 0:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              Let's return to our hungry person and full person from Part A.
+            </p>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              Remember: without the ability to borrow or lend, they disagreed about which stream was better. The hungry person preferred $83.96 today; the full person preferred $100 later.
+            </p>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+            }}>
+              But now they both have access to the <em>same</em> borrowing and lending opportunities. What changes?
+            </p>
+          </>
+        );
+
+      case 1:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '20px',
+            }}>
+              <strong>The hungry person</strong> is given Stream B ($100 in 3 periods). They're hungry — they want cash now.
+            </p>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              Problem? No problem. They can borrow $83.96 today against their future $100. When Time 3 arrives, their $100 payment covers the loan.
+            </p>
+
+            <div style={{
+              background: COLORS.surfaceAlt,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '12px',
+              padding: '20px',
+              marginBottom: '16px',
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                justifyContent: 'center',
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: '18px', fontWeight: '600', color: COLORS.accent }}>
+                    $83.96
+                  </span>
+                  <div style={{ fontSize: '11px', color: COLORS.textMuted }}>today</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', color: COLORS.accent }}>
+                  <LucideIcon name="ArrowLeft" size={24} />
+                  <span style={{ fontSize: '12px', marginLeft: '4px' }}>borrow</span>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: '18px', color: COLORS.textSecondary }}>
+                    $100
+                  </span>
+                  <div style={{ fontSize: '11px', color: COLORS.textMuted }}>3 periods later</div>
+                </div>
+              </div>
+            </div>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+            }}>
+              They get exactly what they wanted: cash now.
+            </p>
+          </>
+        );
+
+      case 2:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '20px',
+            }}>
+              <strong>The full person</strong> is given Stream A ($83.96 today). They don't need it now — they'd rather have more later.
+            </p>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '16px',
+            }}>
+              Problem? No problem. They can lend their $83.96 at 6% for 3 periods. At Time 3, they'll have $100.
+            </p>
+
+            <div style={{
+              background: COLORS.surfaceAlt,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '12px',
+              padding: '20px',
+              marginBottom: '16px',
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                justifyContent: 'center',
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: '18px', color: COLORS.textSecondary }}>
+                    $83.96
+                  </span>
+                  <div style={{ fontSize: '11px', color: COLORS.textMuted }}>today</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', color: COLORS.success }}>
+                  <span style={{ fontSize: '12px', marginRight: '4px' }}>lend</span>
+                  <LucideIcon name="ArrowRight" size={24} />
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: '18px', fontWeight: '600', color: COLORS.success }}>
+                    $100
+                  </span>
+                  <div style={{ fontSize: '11px', color: COLORS.textMuted }}>3 periods later</div>
+                </div>
+              </div>
+            </div>
+
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+            }}>
+              They get exactly what they wanted: more money later.
+            </p>
+          </>
+        );
+
+      case 3:
+        return (
+          <>
+            <p style={{
+              fontSize: '16px',
+              lineHeight: '1.7',
+              color: COLORS.textPrimary,
+              marginBottom: '20px',
+            }}>
+              Now here's the question:
+            </p>
+
+            <p style={{
+              fontSize: '18px',
+              lineHeight: '1.7',
+              color: COLORS.primary,
+              fontWeight: '600',
+              marginBottom: '24px',
+              textAlign: 'center',
+            }}>
+              Since anyone can transform either stream into the other, what does that mean for measuring their value?
+            </p>
+
+            <ChoiceButton
+              label="They still have different values — it depends on personal preference"
+              selected={insightChoice === 'different'}
+              correct={false}
+              submitted={insightChoice !== null}
+              onClick={() => onInsightChoice('different')}
+            />
+
+            <ChoiceButton
+              label="They have the same value — because anyone can transform one into the other"
+              selected={insightChoice === 'same'}
+              correct={true}
+              submitted={insightChoice !== null}
+              onClick={() => onInsightChoice('same')}
+            />
+
+            <ChoiceButton
+              label="Value still can't be measured — we're just moving money around"
+              selected={insightChoice === 'cantmeasure'}
+              correct={false}
+              submitted={insightChoice !== null}
+              onClick={() => onInsightChoice('cantmeasure')}
+            />
+
+            {insightChoice && (
+              <InsightBox soundEnabled={soundEnabled} playOnMount={true}>
+                <strong>The Key Insight:</strong>
+                <br /><br />
+                Because <em>everyone</em> has access to the <em>same</em> borrowing and lending opportunities, anyone can transform either stream into the other. This lets us assign numbers to these streams — numbers that don't depend on who you are or what you happen to want today.
+                <br /><br />
+                Stream A ($83.96 today) and Stream B ($100 in 3 periods) have the <strong>same value</strong>: $83.96 in today's dollars, or $100 in Time 3 dollars.
+                <br /><br />
+                Equal access to borrowing and lending didn't "create" value. It created the <em>conditions under which value can be measured objectively</em>.
+              </InsightBox>
+            )}
+
+            {insightChoice && (
+              <RabbitHoleButton
+                rabbitHole={RABBIT_HOLES.crisis2008}
+                explored={exploredRabbitHoles.includes('crisis2008')}
+                onClick={() => onRabbitHoleClick('crisis2008')}
+                soundEnabled={soundEnabled}
+              />
+            )}
+
+            {insightChoice && (
+              <a href="Tutorial-02D-BondPricing.html" style={{
+                marginTop: '24px',
+                padding: '16px 20px',
+                background: COLORS.primary,
+                borderRadius: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                textDecoration: 'none',
+                color: 'white',
+                fontWeight: '500',
+              }}>
+                <span>Next: Tutorial 02D — Bond Pricing</span>
+                <LucideIcon name="ArrowRight" size={20} />
+              </a>
+            )}
+          </>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div>
+      <h2 style={{
+        margin: '0 0 16px 0',
+        color: COLORS.primary,
+        fontSize: '24px',
+      }}>
+        The Insight
+      </h2>
+      {renderStep()}
+    </div>
+  );
+};
+
+// ============================================================================
+// MAIN TUTORIAL COMPONENT
+// ============================================================================
+
+const Tutorial02B = () => {
+  // --- Core State ---
+  const [currentPartIndex, setCurrentPartIndex] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // --- Modal State ---
+  const [showGlossary, setShowGlossary] = useState(false);
+  const [activeRabbitHole, setActiveRabbitHole] = useState(null);
+  const [showRestartConfirm, setShowRestartConfirm] = useState(false);
+
+  // --- Exploration Tracking ---
+  const [exploredRabbitHoles, setExploredRabbitHoles] = useState([]);
+
+  // --- Calculation Completion Tracking ---
+  const [completedCalcs, setCompletedCalcs] = useState({});
+
+  // --- Insight Choice ---
+  const [insightChoice, setInsightChoice] = useState(null);
+
+  // --- Dev Mode ---
+  const [devMode, setDevMode] = useState(false);
+  const [headerClickCount, setHeaderClickCount] = useState(0);
+  const [lastClickTime, setLastClickTime] = useState(0);
+
+  // --- Handlers ---
+  const handleCalcComplete = useCallback((calcId) => {
+    setCompletedCalcs(prev => ({
+      ...prev,
+      [calcId]: true
+    }));
+  }, []);
+
+  const handleInsightChoice = useCallback((choice) => {
+    setInsightChoice(choice);
+    if (soundEnabled) {
+      if (choice === 'same') {
+        playSound('success');
+      } else {
+        playSound('softNope');
+      }
+    }
+  }, [soundEnabled]);
+
+  const handleContinue = useCallback(() => {
+    const currentPart = PARTS[currentPartIndex];
+
+    if (currentStep < currentPart.steps - 1) {
+      setCurrentStep(prev => prev + 1);
+    } else if (currentPartIndex < PARTS.length - 1) {
+      setCurrentPartIndex(prev => prev + 1);
+      setCurrentStep(0);
+    }
+  }, [currentPartIndex, currentStep]);
+
+  const handleBack = useCallback(() => {
+    if (currentStep > 0) {
+      setCurrentStep(prev => prev - 1);
+    } else if (currentPartIndex > 0) {
+      const prevPartIndex = currentPartIndex - 1;
+      setCurrentPartIndex(prevPartIndex);
+      setCurrentStep(PARTS[prevPartIndex].steps - 1);
+    }
+  }, [currentPartIndex, currentStep]);
+
+  const handleRestart = useCallback(() => {
+    setShowRestartConfirm(true);
+  }, []);
+
+  const confirmRestart = useCallback(() => {
+    setCurrentPartIndex(0);
+    setCurrentStep(0);
+    setExploredRabbitHoles([]);
+    setCompletedCalcs({});
+    setInsightChoice(null);
+    setShowRestartConfirm(false);
+  }, []);
+
+  const cancelRestart = useCallback(() => {
+    setShowRestartConfirm(false);
+  }, []);
+
+  const handleRabbitHoleClick = useCallback((rabbitHoleId) => {
+    setActiveRabbitHole(RABBIT_HOLES[rabbitHoleId]);
+    if (!exploredRabbitHoles.includes(rabbitHoleId)) {
+      setExploredRabbitHoles(prev => [...prev, rabbitHoleId]);
+    }
+  }, [exploredRabbitHoles]);
+
+  const handleHeaderClick = useCallback(() => {
+    const now = Date.now();
+    if (now - lastClickTime < 500) {
+      const newCount = headerClickCount + 1;
+      setHeaderClickCount(newCount);
+      if (newCount >= 3) {
+        setDevMode(prev => !prev);
+        setHeaderClickCount(0);
+      }
+    } else {
+      setHeaderClickCount(1);
+    }
+    setLastClickTime(now);
+  }, [headerClickCount, lastClickTime]);
+
+  const handleJumpToPart = useCallback((partIndex) => {
+    setCurrentPartIndex(partIndex);
+    setCurrentStep(0);
+  }, []);
+
+  // --- Determine if continue is allowed ---
+  const canContinue = useCallback(() => {
+    const currentPart = PARTS[currentPartIndex];
+
+    // Walking Forward calculations
+    if (currentPart.id === 'walkingForward') {
+      if (currentStep === 1 && !completedCalcs.forward1) return false;
+      if (currentStep === 2 && !completedCalcs.forward2) return false;
+      if (currentStep === 3 && !completedCalcs.forward3) return false;
+    }
+
+    // Walking Backward calculations
+    if (currentPart.id === 'walkingBackward') {
+      if (currentStep === 1 && !completedCalcs.back1) return false;
+      if (currentStep === 2 && !completedCalcs.back2) return false;
+      if (currentStep === 3 && !completedCalcs.back3) return false;
+    }
+
+    // The Insight choice
+    if (currentPart.id === 'theInsight' && currentStep === 3 && !insightChoice) {
+      return false;
+    }
+
+    return true;
+  }, [currentPartIndex, currentStep, completedCalcs, insightChoice]);
+
+  // --- Computed Values ---
+  const currentPart = PARTS[currentPartIndex];
+  const canGoBack = currentPartIndex > 0 || currentStep > 0;
+  const totalRabbitHoles = Object.keys(RABBIT_HOLES).length;
+  const isLastStep = currentPartIndex === PARTS.length - 1 && currentStep === currentPart.steps - 1;
+
+  // --- Render Content Based on Current Part ---
+  const renderContent = () => {
+    switch (currentPart.id) {
+      case 'recap':
+        return (
+          <RecapPart
+            step={currentStep}
+            soundEnabled={soundEnabled}
+          />
+        );
+
+      case 'theMachine':
+        return (
+          <TheMachinePart
+            step={currentStep}
+            soundEnabled={soundEnabled}
+            exploredRabbitHoles={exploredRabbitHoles}
+            onRabbitHoleClick={handleRabbitHoleClick}
+          />
+        );
+
+      case 'walkingForward':
+        return (
+          <WalkingForwardPart
+            step={currentStep}
+            soundEnabled={soundEnabled}
+            exploredRabbitHoles={exploredRabbitHoles}
+            onRabbitHoleClick={handleRabbitHoleClick}
+            completedCalcs={completedCalcs}
+            onCalcComplete={handleCalcComplete}
+          />
+        );
+
+      case 'walkingBackward':
+        return (
+          <WalkingBackwardPart
+            step={currentStep}
+            soundEnabled={soundEnabled}
+            completedCalcs={completedCalcs}
+            onCalcComplete={handleCalcComplete}
+          />
+        );
+
+      case 'theInsight':
+        return (
+          <TheInsightPart
+            step={currentStep}
+            soundEnabled={soundEnabled}
+            exploredRabbitHoles={exploredRabbitHoles}
+            onRabbitHoleClick={handleRabbitHoleClick}
+            insightChoice={insightChoice}
+            onInsightChoice={handleInsightChoice}
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  // --- Render ---
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: COLORS.background,
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    }}>
+      <Header
+        currentPartIndex={currentPartIndex}
+        currentStep={currentStep}
+        exploredRabbitHoles={exploredRabbitHoles}
+        totalRabbitHoles={totalRabbitHoles}
+        onGlossaryClick={() => setShowGlossary(true)}
+        onRestartClick={handleRestart}
+        onHeaderClick={handleHeaderClick}
+        soundEnabled={soundEnabled}
+        onSoundToggle={() => setSoundEnabled(prev => !prev)}
+      />
+
+      <main style={{
+        maxWidth: '800px',
+        margin: '0 auto',
+        padding: '32px 24px',
+      }}>
+        <div style={{
+          background: 'white',
+          borderRadius: '16px',
+          padding: '32px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        }}>
+          {renderContent()}
+
+          <NavButtons
+            onBack={handleBack}
+            onContinue={handleContinue}
+            canGoBack={canGoBack}
+            canContinue={canContinue()}
+            soundEnabled={soundEnabled}
+            continueLabel={isLastStep ? 'Continue to 02D' : 'Continue'}
+          />
+        </div>
+      </main>
+
+      {/* Modals */}
+      {showGlossary && <GlossaryModal onClose={() => setShowGlossary(false)} />}
+
+      {activeRabbitHole && (
+        <RabbitHoleModal
+          rabbitHole={activeRabbitHole}
+          onClose={() => setActiveRabbitHole(null)}
+        />
+      )}
+
+      {showRestartConfirm && (
+        <RestartConfirmModal
+          onConfirm={confirmRestart}
+          onCancel={cancelRestart}
+        />
+      )}
+
+      {/* Dev Mode Panel */}
+      {devMode && (
+        <DevModePanel
+          onJumpToPart={handleJumpToPart}
+          currentPartIndex={currentPartIndex}
+          onClose={() => setDevMode(false)}
+        />
+      )}
+    </div>
+  );
+};
+
+// ============================================================================
+// RENDER
+// ============================================================================
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<Tutorial02B />);
+    </script>
+</body>
+</html>
