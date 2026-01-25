@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Dive: Perpetuities & Consols | Time Value of Money</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8fafc; min-height: 100vh; }
+        .hide-mobile { }
+        @media (max-width: 600px) { .hide-mobile { display: none; } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+/**
+ * Deep Dive: Perpetuities & Consols
+ * ACCT 2700 - Foundations of Accounting & Valuation
+ * Yale School of Management
+ *
+ * A perpetuity pays a fixed amount forever. The simplest case
+ * for understanding present value and interest rate imputation.
+ */
+
+const { useState, useCallback, useEffect, useRef } = React;
+
+// LucideIcon wrapper
+const LucideIcon = ({ name, size = 24, color = 'currentColor', style = {} }) => {
+    const iconRef = useRef(null);
+    useEffect(() => {
+        if (iconRef.current && lucide[name]) {
+            iconRef.current.innerHTML = '';
+            const svg = lucide.createElement(lucide[name]);
+            svg.setAttribute('width', size);
+            svg.setAttribute('height', size);
+            svg.setAttribute('stroke', color);
+            iconRef.current.appendChild(svg);
+        }
+    }, [name, size, color]);
+    return <span ref={iconRef} style={{ display: 'inline-flex', alignItems: 'center', ...style }} />;
+};
+
+const COLORS = {
+  primary: '#00356b',
+  primaryLight: '#1a4a7a',
+  primaryDark: '#002548',
+  background: '#f8fafc',
+  surface: '#ffffff',
+  surfaceAlt: '#f1f5f9',
+  border: '#e2e8f0',
+  borderDark: '#cbd5e1',
+  textPrimary: '#1e293b',
+  textSecondary: '#64748b',
+  textMuted: '#94a3b8',
+  accent: '#0369a1',
+  accentLight: '#e0f2fe',
+  gold: '#ca8a04',
+  goldLight: '#fef9c3',
+  goldBorder: '#eab308',
+  success: '#16a34a',
+  successBg: '#f0fdf4',
+  successBorder: '#86efac',
+  warning: '#d97706',
+  warningBg: '#fffbeb',
+  warningBorder: '#fcd34d',
+  error: '#dc2626',
+  errorBg: '#fef2f2',
+  rabbitHole: '#7c3aed',
+  rabbitHoleLight: '#ede9fe',
+  rabbitHoleBorder: '#a78bfa',
+  deepDive: '#0d9488',
+  deepDiveLight: '#f0fdfa',
+  deepDiveBorder: '#5eead4',
+};
+
+const PARTS = [
+  { id: 'intro', title: 'What is a Perpetuity?', steps: 2 },
+  { id: 'intuition', title: 'The Interest-Only Loan', steps: 3 },
+  { id: 'formula', title: 'The Formula Emerges', steps: 3 },
+  { id: 'consols', title: 'Consols: A Real Example', steps: 2 },
+  { id: 'imputation', title: 'Imputing Interest Rates', steps: 3 },
+  { id: 'growing', title: 'Growing Perpetuities', steps: 4 },
+  { id: 'complete', title: 'Complete', steps: 1 },
+];
+
+const RABBIT_HOLES = {
+  consolHistory: {
+    id: 'consolHistory',
+    title: 'The Fascinating History of Consols',
+    partId: 'consols',
+    content: `British consols (short for "consolidated annuities") were first issued in 1751 to refinance earlier government debts. They paid 3% annually and became the benchmark for "risk-free" rates in British finance for over two centuries.
+
+During the Napoleonic Wars, the price of consols fell dramatically as investors feared Britain might lose and default. After Wellington's victory at Waterloo, prices soared. Nathan Rothschild famously made a fortune trading consols based on early news of the victory.
+
+The last consols were finally redeemed in 2015 — some had been paying interest for over 260 years! Over that time, these bonds had become widely dispersed through inheritance, gifts, and estate divisions. Many individual holdings were tiny — sometimes worth just a few pounds — but each still required annual payment processing, record-keeping, and customer service.
+
+The cost of administering thousands of these small, scattered payments had become a burden. So the government bought them back — yes, at relatively high prices, since interest rates were low at the time — simply to clean up the administrative mess. It was an efficiency decision, not a rate arbitrage.
+
+These weren't just financial instruments — they were intertwined with British history, funding everything from wars to railways to social programs.`
+  },
+  infiniteSums: {
+    id: 'infiniteSums',
+    title: 'The Math of Infinite Sums',
+    partId: 'formula',
+    content: `For the mathematically curious, here's why C/r works from a pure math standpoint.
+
+A perpetuity's value is an infinite geometric series:
+  C/(1+r) + C/(1+r)² + C/(1+r)³ + ...
+
+Let's call this sum S, with first term a = C/(1+r) and ratio x = 1/(1+r).
+
+So: S = a + ax + ax² + ax³ + ...
+
+Here's the trick. Multiply both sides by x:
+  xS = ax + ax² + ax³ + ax⁴ + ...
+
+Now subtract the second equation from the first:
+  S - xS = a    (everything else cancels!)
+
+Factor out S:
+  S(1 - x) = a
+
+Solve for S:
+  S = a / (1 - x)
+
+Plugging back in a = C/(1+r) and x = 1/(1+r):
+  S = [C/(1+r)] / [1 - 1/(1+r)]
+    = [C/(1+r)] / [(1+r-1)/(1+r)]
+    = [C/(1+r)] × [(1+r)/r]
+    = C/r
+
+The math confirms what our intuition already told us: the value must be C/r.`
+  },
+  gordonModel: {
+    id: 'gordonModel',
+    title: 'The Gordon Growth Model',
+    partId: 'growing',
+    content: `The Gordon Growth Model (also called the Dividend Discount Model) was developed by Myron Gordon in the 1950s. It extends the perpetuity formula to handle growing cash flows:
+
+Value = C / (r - g)
+
+where g is the constant growth rate.
+
+This became hugely influential in stock valuation. If a company pays dividends that grow at rate g, and we discount at rate r, this formula gives the stock's "intrinsic value."
+
+But there's a famous catch: What if g ≥ r? The formula breaks — you'd be dividing by zero or a negative number. Economically, this means if cash flows grow as fast as (or faster than) the discount rate, the present value would be infinite. In practice, this can't happen forever; growth rates eventually slow down.
+
+The model's simplicity is both its strength and weakness. Real companies don't grow at perfectly constant rates, and estimating g and r requires judgment. As Warren Buffett reportedly said, "The formula is simple, but getting the inputs right is fiendishly difficult."
+
+The Gordon Model is often used as a "terminal value" in discounted cash flow analysis — after projecting detailed cash flows for 5-10 years, analysts use the Gordon formula to estimate the value of all cash flows thereafter.`
+  },
+};
+
+const GLOSSARY = {
+  perpetuity: { term: 'Perpetuity', definition: 'A stream of equal cash flows that continues forever. Valued at C/r where C is the periodic payment and r is the interest rate.' },
+  consol: { term: 'Consol', definition: 'Short for "consolidated annuity." A perpetual bond issued by the British government, paying fixed interest forever with no maturity date.' },
+  annuity: { term: 'Annuity', definition: 'A series of equal payments made at regular intervals. A perpetuity is an annuity that never ends.' },
+  growingPerpetuity: { term: 'Growing Perpetuity', definition: 'A perpetuity where payments grow at a constant rate g. Valued at C/(r-g) where C is the first payment.' },
+  interestOnlyLoan: { term: 'Interest-Only Loan', definition: 'A loan where the borrower pays only interest each period, never reducing the principal. The payments form a perpetuity.' },
+  imputation: { term: 'Imputation', definition: 'Inferring an unknown value (like an interest rate) from observable market prices and known cash flows.' },
+};
+
+// Utility functions
+const formatCurrency = (v) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(v);
+const formatPercent = (v, d = 1) => (v * 100).toFixed(d) + '%';
+const parseUserInput = (input) => parseFloat(String(input).replace(/[$%,\s]/g, ''));
+const checkAnswer = (userValue, correctValue, tolerance = 0.05) => Math.abs(userValue - correctValue) <= tolerance;
+
+const playSound = (type) => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    if (type === 'success') {
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+      osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
+    } else if (type === 'softNope') {
+      osc.frequency.setValueAtTime(220, ctx.currentTime);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.3);
+    } else if (type === 'click') {
+      osc.frequency.setValueAtTime(600, ctx.currentTime);
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08);
+    } else if (type === 'rabbitHole') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.setValueAtTime(932.33, ctx.currentTime + 0.05);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.25);
+    } else if (type === 'insight') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15);
+      osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.3);
+      osc.frequency.setValueAtTime(1046.50, ctx.currentTime + 0.45);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.6);
+    } else if (type === 'celebration') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+      osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2);
+      osc.frequency.setValueAtTime(1046.50, ctx.currentTime + 0.3);
+      osc.frequency.setValueAtTime(1318.51, ctx.currentTime + 0.4);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.8);
+    }
+    setTimeout(() => ctx.close(), 1000);
+  } catch (e) {}
+};
+
+const calculateProgress = (partIndex, step) => {
+  if (partIndex === PARTS.length - 1) return 100;
+  const total = PARTS.reduce((s, p) => s + p.steps, 0);
+  const done = PARTS.slice(0, partIndex).reduce((s, p) => s + p.steps, 0) + step;
+  return Math.round((done / total) * 100);
+};
+
+// Header Component
+const Header = ({ currentPartIndex, currentStep, exploredRabbitHoles, onGlossaryClick, onRabbitHoleListClick, onRestartClick, onHeaderClick, soundEnabled, onSoundToggle }) => {
+  const progress = calculateProgress(currentPartIndex, currentStep);
+  return (
+    <header style={{ background: COLORS.deepDive, color: 'white', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 100 }}>
+      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+          <h1 onClick={onHeaderClick} style={{ fontSize: '18px', fontWeight: '600', margin: 0, cursor: 'default', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <LucideIcon name="Layers" size={20} /> Perpetuities & Consols
+          </h1>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button onClick={onSoundToggle} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center' }} title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}>
+              {soundEnabled ? <LucideIcon name="Volume2" size={18} /> : <LucideIcon name="VolumeX" size={18} />}
+            </button>
+            <button onClick={onRabbitHoleListClick} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: COLORS.rabbitHoleLight, color: COLORS.rabbitHole, padding: '4px 10px', borderRadius: '12px', fontSize: '13px', fontWeight: '500', border: 'none', cursor: 'pointer', transition: 'all 0.2s ease' }} title="View all rabbit holes">
+              <LucideIcon name="Rabbit" size={14} />
+              <span>{exploredRabbitHoles.length}/{Object.keys(RABBIT_HOLES).length}</span>
+            </button>
+            <button onClick={onGlossaryClick} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
+              <LucideIcon name="BookOpen" size={16} />
+              <span className="hide-mobile">Glossary</span>
+            </button>
+            <button onClick={onRestartClick} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center' }} title="Restart tutorial">
+              <LucideIcon name="RotateCcw" size={18} />
+            </button>
+          </div>
+        </div>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px', opacity: 0.9 }}>
+            <span>Part {currentPartIndex + 1}: {PARTS[currentPartIndex].title}</span>
+            <span>{progress}% complete</span>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
+            <div style={{ background: COLORS.goldBorder, height: '100%', width: `${progress}%`, transition: 'width 0.3s ease', borderRadius: '4px' }} />
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+};
+
+// NavButtons Component
+const NavButtons = ({ onBack, onContinue, canGoBack, canContinue, continueLabel = 'Continue', soundEnabled }) => {
+  const handleContinue = () => { if (soundEnabled) playSound('click'); onContinue(); };
+  const handleBack = () => { if (soundEnabled) playSound('click'); onBack(); };
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '32px', paddingTop: '24px', borderTop: `1px solid ${COLORS.border}` }}>
+      <button onClick={handleBack} disabled={!canGoBack} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 20px', border: `1px solid ${COLORS.border}`, borderRadius: '8px', background: 'white', color: canGoBack ? COLORS.textPrimary : COLORS.textMuted, cursor: canGoBack ? 'pointer' : 'not-allowed', fontSize: '15px', opacity: canGoBack ? 1 : 0.5 }}>
+        <LucideIcon name="ChevronLeft" size={18} />
+        Back
+      </button>
+      <button onClick={handleContinue} disabled={!canContinue} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 24px', border: 'none', borderRadius: '8px', background: canContinue ? COLORS.deepDive : COLORS.textMuted, color: 'white', cursor: canContinue ? 'pointer' : 'not-allowed', fontSize: '15px', fontWeight: '500' }}>
+        {continueLabel}
+        <LucideIcon name="ChevronRight" size={18} />
+      </button>
+    </div>
+  );
+};
+
+// ChoiceButton Component
+const ChoiceButton = ({ label, selected, correct, submitted, onClick, disabled }) => {
+  let background = 'white';
+  let borderColor = COLORS.border;
+  let textColor = COLORS.textPrimary;
+  if (selected && !submitted) { background = COLORS.accentLight; borderColor = COLORS.accent; }
+  else if (submitted) {
+    if (correct) { background = COLORS.successBg; borderColor = COLORS.successBorder; }
+    else if (selected && !correct) { background = COLORS.warningBg; borderColor = COLORS.warningBorder; }
+    else { textColor = COLORS.textMuted; }
+  }
+  return (
+    <button onClick={onClick} disabled={disabled || submitted} style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '14px 16px', border: `2px solid ${borderColor}`, borderRadius: '10px', background, color: textColor, cursor: disabled || submitted ? 'default' : 'pointer', fontSize: '15px', textAlign: 'left', transition: 'all 0.2s ease', marginBottom: '8px' }}>
+      {submitted && correct && <LucideIcon name="Check" size={20} color={COLORS.success} />}
+      {submitted && selected && !correct && <LucideIcon name="X" size={20} color={COLORS.warning} />}
+      {!submitted && <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `2px solid ${selected ? COLORS.accent : COLORS.border}`, background: selected ? COLORS.accent : 'white', flexShrink: 0 }} />}
+      <span>{label}</span>
+    </button>
+  );
+};
+
+// CalculationBox Component
+const CalculationBox = ({ prompt, correctAnswer, hint1, hint2, onCorrect, soundEnabled, tolerance = 0.5, disabled = false, prefix = '$', isPercent = false }) => {
+  const [input, setInput] = useState('');
+  const [attempts, setAttempts] = useState(0);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [showHint, setShowHint] = useState(null);
+
+  const handleCheck = () => {
+    if (disabled || isCorrect) return;
+    const userValue = parseUserInput(input);
+    if (isNaN(userValue)) { setShowHint('Please enter a valid number'); return; }
+    const compareValue = isPercent ? userValue / 100 : userValue;
+    const tolerance2 = isPercent ? 0.001 : tolerance;
+    if (checkAnswer(compareValue, correctAnswer, tolerance2)) {
+      setIsCorrect(true);
+      if (soundEnabled) playSound('success');
+      onCorrect?.();
+    } else {
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      if (soundEnabled) playSound('softNope');
+      const displayAnswer = isPercent ? formatPercent(correctAnswer) : formatCurrency(correctAnswer);
+      if (newAttempts >= 3) { setShowHint(`The answer is ${displayAnswer}`); setIsCorrect(true); onCorrect?.(); }
+      else if (newAttempts === 2 && hint2) { setShowHint(hint2); }
+      else if (hint1) { setShowHint(hint1); }
+    }
+  };
+
+  return (
+    <div style={{ background: COLORS.surfaceAlt, border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '20px', marginTop: '16px', opacity: disabled ? 0.6 : 1 }}>
+      <p style={{ margin: '0 0 16px 0', fontSize: '15px', color: COLORS.textPrimary, fontFamily: 'monospace' }}>{prompt}</p>
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          {prefix && <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: COLORS.textMuted }}>{prefix}</span>}
+          <input type="text" value={input} onChange={(e) => setInput(e.target.value)} disabled={isCorrect || disabled} placeholder={isPercent ? '0.0' : '0.00'} style={{ width: '100%', padding: prefix ? '12px 12px 12px 28px' : '12px', border: `2px solid ${isCorrect ? COLORS.successBorder : COLORS.border}`, borderRadius: '8px', fontSize: '16px', fontFamily: 'monospace', background: isCorrect ? COLORS.successBg : 'white', boxSizing: 'border-box' }} onKeyDown={(e) => e.key === 'Enter' && !isCorrect && handleCheck()} />
+        </div>
+        <button onClick={handleCheck} disabled={isCorrect || !input || disabled} style={{ padding: '12px 20px', border: 'none', borderRadius: '8px', background: isCorrect ? COLORS.success : COLORS.deepDive, color: 'white', fontSize: '15px', fontWeight: '500', cursor: isCorrect || !input || disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {isCorrect ? <LucideIcon name="Check" size={18} /> : 'Check'}
+        </button>
+      </div>
+      {showHint && (
+        <p style={{ marginTop: '12px', padding: '10px 12px', background: isCorrect && attempts >= 3 ? COLORS.warningBg : COLORS.accentLight, borderRadius: '6px', fontSize: '14px', color: isCorrect && attempts >= 3 ? COLORS.warning : COLORS.accent }}>{showHint}</p>
+      )}
+    </div>
+  );
+};
+
+// InsightBox Component
+const InsightBox = ({ children, icon, celebration = false }) => (
+  <div style={{ background: celebration ? 'linear-gradient(135deg, #fef9c3 0%, #fef3c7 50%, #fde68a 100%)' : COLORS.goldLight, border: `2px solid ${COLORS.goldBorder}`, borderRadius: '12px', padding: celebration ? '24px' : '20px', marginTop: '20px', marginBottom: '20px', boxShadow: celebration ? '0 4px 12px rgba(202, 138, 4, 0.2)' : 'none' }}>
+    <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+      {celebration ? <LucideIcon name="Sparkles" size={28} color={COLORS.gold} style={{ flexShrink: 0, marginTop: '2px' }} /> : (icon || <LucideIcon name="Lightbulb" size={24} color={COLORS.gold} style={{ flexShrink: 0, marginTop: '2px' }} />)}
+      <div style={{ fontSize: celebration ? '17px' : '16px', lineHeight: '1.6', color: COLORS.textPrimary }}>{children}</div>
+    </div>
+  </div>
+);
+
+// PerpetuityDiagram Component
+const PerpetuityDiagram = ({ payment = 100, rate = 0.10, showPVs = false }) => {
+  const periods = [1, 2, 3, 4, '...', '∞'];
+
+  return (
+    <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '24px', marginTop: '16px', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', position: 'relative', minHeight: showPVs ? '160px' : '100px', paddingBottom: '50px', marginBottom: '8px' }}>
+        <div style={{ position: 'absolute', bottom: '25px', left: '5%', right: '5%', height: '3px', background: COLORS.borderDark }} />
+
+        {/* Time 0 */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+          <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: COLORS.textSecondary, position: 'absolute', bottom: '18px' }} />
+          <span style={{ position: 'absolute', bottom: '-5px', fontSize: '13px', color: COLORS.textSecondary, fontWeight: '500' }}>Time 0</span>
+        </div>
+
+        {/* Payment periods */}
+        {periods.map((period, index) => {
+          const isEllipsis = period === '...';
+          const isInfinity = period === '∞';
+          const pv = typeof period === 'number' ? payment / Math.pow(1 + rate, period) : null;
+
+          return (
+            <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+              {!isEllipsis && (
+                <>
+                  <div style={{
+                    background: isInfinity ? COLORS.deepDiveLight : 'white',
+                    border: `2px solid ${isInfinity ? COLORS.deepDiveBorder : COLORS.border}`,
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    marginBottom: '8px',
+                    minWidth: '65px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontFamily: 'monospace', fontSize: '14px', fontWeight: '600', color: isInfinity ? COLORS.deepDive : COLORS.textPrimary }}>
+                      {isInfinity ? `$${payment}` : formatCurrency(payment)}
+                    </div>
+                  </div>
+                  {showPVs && pv !== null && (
+                    <div style={{ fontSize: '11px', color: COLORS.textSecondary, marginBottom: '4px', fontFamily: 'monospace' }}>
+                      PV: {formatCurrency(pv)}
+                    </div>
+                  )}
+                  <div style={{ width: '2px', height: '15px', background: isInfinity ? COLORS.deepDiveBorder : COLORS.borderDark }} />
+                </>
+              )}
+              {isEllipsis && (
+                <div style={{ fontSize: '20px', color: COLORS.textMuted, marginBottom: '20px', letterSpacing: '2px' }}>···</div>
+              )}
+              <div style={{
+                width: isEllipsis ? '0' : '14px',
+                height: isEllipsis ? '0' : '14px',
+                borderRadius: '50%',
+                background: isInfinity ? COLORS.deepDive : COLORS.textSecondary,
+                position: 'absolute',
+                bottom: '18px'
+              }} />
+              <span style={{ position: 'absolute', bottom: '-5px', fontSize: '13px', color: COLORS.textSecondary, fontWeight: '500' }}>
+                {!isEllipsis && (isInfinity ? '∞' : period)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ textAlign: 'center', marginTop: '16px', paddingTop: '12px', borderTop: `1px solid ${COLORS.border}`, fontSize: '14px', color: COLORS.textSecondary }}>
+        <LucideIcon name="Infinity" size={16} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+        Payment of {formatCurrency(payment)} continues forever
+      </div>
+    </div>
+  );
+};
+
+// InterestOnlyLoanVisual Component
+const InterestOnlyLoanVisual = () => (
+  <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '24px', marginTop: '16px', marginBottom: '16px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '24px', flexWrap: 'wrap' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '14px', color: COLORS.textSecondary, marginBottom: '8px' }}>You borrow</div>
+        <div style={{ fontSize: '32px', fontWeight: '700', color: COLORS.deepDive, fontFamily: 'monospace' }}>$1,000</div>
+        <div style={{ fontSize: '13px', color: COLORS.textMuted, marginTop: '4px' }}>at 10% interest</div>
+      </div>
+      <div style={{ fontSize: '32px', color: COLORS.textMuted }}>→</div>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '14px', color: COLORS.textSecondary, marginBottom: '8px' }}>You pay each year</div>
+        <div style={{ fontSize: '32px', fontWeight: '700', color: COLORS.gold, fontFamily: 'monospace' }}>$100</div>
+        <div style={{ fontSize: '13px', color: COLORS.textMuted, marginTop: '4px' }}>interest only, forever</div>
+      </div>
+    </div>
+    <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: `1px solid ${COLORS.border}`, textAlign: 'center' }}>
+      <div style={{ fontSize: '14px', color: COLORS.textSecondary }}>
+        The interest payment ($100) must equal Principal × Rate
+      </div>
+      <div style={{ fontSize: '16px', fontFamily: 'monospace', color: COLORS.textPrimary, marginTop: '8px' }}>
+        $100 = $1,000 × 10%
+      </div>
+    </div>
+  </div>
+);
+
+// FormulaDisplay Component
+const FormulaDisplay = ({ showRate = false }) => (
+  <div style={{
+    background: 'white',
+    border: `2px solid ${COLORS.deepDiveBorder}`,
+    borderRadius: '12px',
+    padding: '24px',
+    marginTop: '16px',
+    marginBottom: '16px',
+    textAlign: 'center'
+  }}>
+    <div style={{ fontSize: '24px', fontFamily: 'Georgia, serif', color: COLORS.textPrimary, marginBottom: '16px' }}>
+      Value = <span style={{ fontStyle: 'italic' }}>C</span> / <span style={{ fontStyle: 'italic' }}>r</span>
+    </div>
+    {showRate && (
+      <div style={{ fontSize: '24px', fontFamily: 'Georgia, serif', color: COLORS.deepDive, marginBottom: '16px' }}>
+        <span style={{ fontStyle: 'italic' }}>r</span> = <span style={{ fontStyle: 'italic' }}>C</span> / Value
+      </div>
+    )}
+    <div style={{ display: 'flex', justifyContent: 'center', gap: '32px', fontSize: '14px', color: COLORS.textSecondary }}>
+      <span><em>C</em> = periodic payment</span>
+      <span><em>r</em> = interest rate</span>
+    </div>
+  </div>
+);
+
+// GrowingPVTable Component
+const GrowingPVTable = () => {
+  const data = [
+    { year: 1, payment: 100.00, factor: '1.08', pv: 92.59 },
+    { year: 2, payment: 103.00, factor: '1.08²', pv: 88.30 },
+    { year: 3, payment: 106.09, factor: '1.08³', pv: 84.22 },
+    { year: 4, payment: 109.27, factor: '1.08⁴', pv: 80.34 },
+    { year: 5, payment: 112.55, factor: '1.08⁵', pv: 76.63 },
+  ];
+
+  return (
+    <div style={{ background: 'white', border: `1px solid ${COLORS.border}`, borderRadius: '12px', overflow: 'hidden', marginTop: '16px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+        <thead>
+          <tr style={{ background: COLORS.surfaceAlt }}>
+            <th style={{ padding: '12px', textAlign: 'center', borderBottom: `2px solid ${COLORS.border}` }}>Year</th>
+            <th style={{ padding: '12px', textAlign: 'right', borderBottom: `2px solid ${COLORS.border}` }}>Payment</th>
+            <th style={{ padding: '12px', textAlign: 'center', borderBottom: `2px solid ${COLORS.border}` }}>÷</th>
+            <th style={{ padding: '12px', textAlign: 'right', borderBottom: `2px solid ${COLORS.border}` }}>Present Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row, i) => (
+            <tr key={i}>
+              <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}`, fontFamily: 'monospace' }}>{row.year}</td>
+              <td style={{ padding: '10px 12px', textAlign: 'right', borderBottom: `1px solid ${COLORS.border}`, fontFamily: 'monospace', color: COLORS.deepDive }}>{formatCurrency(row.payment)}</td>
+              <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}`, fontFamily: 'monospace', color: COLORS.textMuted }}>{row.factor}</td>
+              <td style={{ padding: '10px 12px', textAlign: 'right', borderBottom: `1px solid ${COLORS.border}`, fontFamily: 'monospace' }}>{formatCurrency(row.pv)}</td>
+            </tr>
+          ))}
+          <tr style={{ background: COLORS.surfaceAlt }}>
+            <td colSpan={3} style={{ padding: '10px 12px', textAlign: 'center', fontStyle: 'italic', color: COLORS.textMuted }}>... and so on forever</td>
+            <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', color: COLORS.textMuted }}>...</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style={{ padding: '12px', background: COLORS.goldLight, fontSize: '13px', color: COLORS.gold, textAlign: 'center' }}>
+        Each PV is previous × (1.03 ÷ 1.08) = previous × 0.954
+      </div>
+    </div>
+  );
+};
+
+// Interactive Calculator Component
+const PerpetuityCalculator = ({ soundEnabled }) => {
+  const [payment, setPayment] = useState('100');
+  const [rate, setRate] = useState('10');
+
+  const paymentNum = parseFloat(payment) || 0;
+  const rateNum = (parseFloat(rate) || 0) / 100;
+  const value = rateNum > 0 ? paymentNum / rateNum : 0;
+
+  return (
+    <div style={{ background: COLORS.surfaceAlt, border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '20px', marginTop: '16px' }}>
+      <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', color: COLORS.textPrimary, display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <LucideIcon name="Calculator" size={18} color={COLORS.deepDive} />
+        Try Different Values
+      </h4>
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: '120px' }}>
+          <label style={{ display: 'block', fontSize: '13px', color: COLORS.textSecondary, marginBottom: '4px' }}>Payment (C)</label>
+          <div style={{ position: 'relative' }}>
+            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: COLORS.textMuted }}>$</span>
+            <input type="number" value={payment} onChange={(e) => setPayment(e.target.value)} style={{ width: '100%', padding: '10px 10px 10px 28px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontSize: '16px', fontFamily: 'monospace' }} />
+          </div>
+        </div>
+        <div style={{ flex: 1, minWidth: '120px' }}>
+          <label style={{ display: 'block', fontSize: '13px', color: COLORS.textSecondary, marginBottom: '4px' }}>Interest Rate (r)</label>
+          <div style={{ position: 'relative' }}>
+            <input type="number" value={rate} onChange={(e) => setRate(e.target.value)} style={{ width: '100%', padding: '10px 28px 10px 10px', border: `1px solid ${COLORS.border}`, borderRadius: '6px', fontSize: '16px', fontFamily: 'monospace' }} />
+            <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: COLORS.textMuted }}>%</span>
+          </div>
+        </div>
+      </div>
+      <div style={{ background: 'white', border: `2px solid ${COLORS.deepDiveBorder}`, borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
+        <div style={{ fontSize: '14px', color: COLORS.textSecondary, marginBottom: '4px' }}>Present Value</div>
+        <div style={{ fontSize: '28px', fontWeight: '700', color: COLORS.deepDive, fontFamily: 'monospace' }}>
+          {rateNum > 0 ? formatCurrency(value) : '—'}
+        </div>
+        <div style={{ fontSize: '13px', color: COLORS.textMuted, marginTop: '8px', fontFamily: 'monospace' }}>
+          {formatCurrency(paymentNum)} ÷ {rate}% = {rateNum > 0 ? formatCurrency(value) : '—'}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// RabbitHoleButton Component
+const RabbitHoleButton = ({ rabbitHole, explored, onClick, soundEnabled }) => {
+  const handleClick = () => { if (soundEnabled) playSound('rabbitHole'); onClick(); };
+  return (
+    <button onClick={handleClick} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '14px 16px', border: `2px dashed ${COLORS.rabbitHoleBorder}`, borderRadius: '10px', background: explored ? COLORS.rabbitHoleLight : 'white', color: COLORS.rabbitHole, cursor: 'pointer', fontSize: '14px', textAlign: 'left', marginTop: '16px', transition: 'all 0.2s ease' }}>
+      <LucideIcon name="Rabbit" size={20} style={{ flexShrink: 0 }} />
+      <span style={{ flex: 1 }}>{rabbitHole.title}</span>
+      {explored && <LucideIcon name="Check" size={18} />}
+    </button>
+  );
+};
+
+// Modal Component
+const Modal = ({ children, onClose, title, headerBg = COLORS.deepDive, headerIcon }) => (
+  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 1000 }} onClick={onClose}>
+    <div style={{ background: 'white', borderRadius: '16px', maxWidth: '600px', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '100%' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ background: headerBg, color: 'white', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {headerIcon}
+        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600' }}>{title}</h2>
+      </div>
+      <div style={{ padding: '24px' }}>{children}</div>
+      <div style={{ padding: '16px 24px', borderTop: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={onClose} style={{ padding: '10px 24px', border: 'none', borderRadius: '8px', background: headerBg, color: 'white', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>
+          {title === 'Glossary' ? 'Close' : 'Back to Tutorial'}
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// RabbitHoleListModal Component
+const RabbitHoleListModal = ({ exploredRabbitHoles, onSelectRabbitHole, onClose }) => (
+  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 1000 }}>
+    <div style={{ background: 'white', borderRadius: '16px', maxWidth: '500px', width: '100%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+      <div style={{ background: COLORS.rabbitHole, color: 'white', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <LucideIcon name="Rabbit" size={24} />
+        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Rabbit Holes</h2>
+        <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', padding: '4px 10px', borderRadius: '12px', fontSize: '13px' }}>
+          {exploredRabbitHoles.length}/{Object.keys(RABBIT_HOLES).length} explored
+        </span>
+      </div>
+      <div style={{ padding: '16px' }}>
+        {Object.values(RABBIT_HOLES).map((rabbitHole) => {
+          const isExplored = exploredRabbitHoles.includes(rabbitHole.id);
+          return (
+            <button key={rabbitHole.id} onClick={() => onSelectRabbitHole(rabbitHole)} style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '14px 16px', marginBottom: '8px', border: `2px solid ${isExplored ? COLORS.rabbitHoleBorder : COLORS.border}`, borderRadius: '10px', background: isExplored ? COLORS.rabbitHoleLight : 'white', color: COLORS.textPrimary, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease' }}>
+              <LucideIcon name="Rabbit" size={20} color={isExplored ? COLORS.rabbitHole : COLORS.textMuted} />
+              <span style={{ flex: 1, fontWeight: '500' }}>{rabbitHole.title}</span>
+              {isExplored && <LucideIcon name="Check" size={18} color={COLORS.rabbitHole} />}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ padding: '16px 24px', borderTop: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={onClose} style={{ padding: '10px 24px', border: 'none', borderRadius: '8px', background: COLORS.rabbitHole, color: 'white', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>Close</button>
+      </div>
+    </div>
+  </div>
+);
+
+// GlossaryModal Component
+const GlossaryModal = ({ onClose }) => (
+  <Modal title="Glossary" onClose={onClose} headerIcon={<LucideIcon name="BookOpen" size={24} />}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {Object.values(GLOSSARY).map((item, index) => (
+        <div key={index} style={{ padding: '16px', background: COLORS.surfaceAlt, borderRadius: '8px' }}>
+          <div style={{ fontWeight: '600', color: COLORS.textPrimary, marginBottom: '4px' }}>{item.term}</div>
+          <div style={{ fontSize: '14px', color: COLORS.textSecondary, lineHeight: '1.5' }}>{item.definition}</div>
+        </div>
+      ))}
+    </div>
+  </Modal>
+);
+
+// Main App Component
+const App = () => {
+  // State
+  const [currentPartIndex, setCurrentPartIndex] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showGlossary, setShowGlossary] = useState(false);
+  const [showRabbitHoleList, setShowRabbitHoleList] = useState(false);
+  const [activeRabbitHole, setActiveRabbitHole] = useState(null);
+  const [exploredRabbitHoles, setExploredRabbitHoles] = useState([]);
+
+  // Quiz states
+  const [quizAnswers, setQuizAnswers] = useState({});
+  const [quizSubmitted, setQuizSubmitted] = useState({});
+  const [calculationsComplete, setCalculationsComplete] = useState({});
+
+  // Dev mode
+  const [devMode, setDevMode] = useState(false);
+  const [headerClickCount, setHeaderClickCount] = useState(0);
+  const [lastClickTime, setLastClickTime] = useState(0);
+
+  const handleHeaderClick = useCallback(() => {
+    const now = Date.now();
+    if (now - lastClickTime < 500) {
+      const newCount = headerClickCount + 1;
+      setHeaderClickCount(newCount);
+      if (newCount >= 3) {
+        setDevMode(prev => !prev);
+        setHeaderClickCount(0);
+      }
+    } else {
+      setHeaderClickCount(1);
+    }
+    setLastClickTime(now);
+  }, [headerClickCount, lastClickTime]);
+
+  const handleRabbitHoleClick = useCallback((id) => {
+    const rabbitHole = RABBIT_HOLES[id];
+    if (rabbitHole) {
+      setActiveRabbitHole(rabbitHole);
+      if (!exploredRabbitHoles.includes(id)) {
+        setExploredRabbitHoles(prev => [...prev, id]);
+      }
+    }
+  }, [exploredRabbitHoles]);
+
+  const handleRabbitHoleFromList = useCallback((rabbitHole) => {
+    setShowRabbitHoleList(false);
+    setActiveRabbitHole(rabbitHole);
+    if (!exploredRabbitHoles.includes(rabbitHole.id)) {
+      setExploredRabbitHoles(prev => [...prev, rabbitHole.id]);
+    }
+  }, [exploredRabbitHoles]);
+
+  const handleQuizAnswer = useCallback((quizId, answer) => {
+    setQuizAnswers(prev => ({ ...prev, [quizId]: answer }));
+  }, []);
+
+  const handleQuizSubmit = useCallback((quizId, correctAnswer) => {
+    setQuizSubmitted(prev => ({ ...prev, [quizId]: true }));
+    const isCorrect = quizAnswers[quizId] === correctAnswer;
+    if (soundEnabled) playSound(isCorrect ? 'success' : 'softNope');
+  }, [quizAnswers, soundEnabled]);
+
+  const handleCalculationComplete = useCallback((calcId) => {
+    setCalculationsComplete(prev => ({ ...prev, [calcId]: true }));
+  }, []);
+
+  const canContinue = useCallback(() => {
+    const partId = PARTS[currentPartIndex].id;
+
+    // Part: formula - Step 1 requires calculation
+    if (partId === 'formula' && currentStep === 0) {
+      return calculationsComplete['formula_basic'];
+    }
+
+    // Part: imputation - Step 1 requires calculation
+    if (partId === 'imputation' && currentStep === 1) {
+      return calculationsComplete['impute_rate'];
+    }
+
+    // Part: growing - Step 2 requires calculation
+    if (partId === 'growing' && currentStep === 2) {
+      return calculationsComplete['growing_calc'];
+    }
+
+    return true;
+  }, [currentPartIndex, currentStep, calculationsComplete]);
+
+  const handleContinue = useCallback(() => {
+    const currentPart = PARTS[currentPartIndex];
+    if (currentStep < currentPart.steps - 1) {
+      setCurrentStep(prev => prev + 1);
+    } else if (currentPartIndex < PARTS.length - 1) {
+      setCurrentPartIndex(prev => prev + 1);
+      setCurrentStep(0);
+    }
+  }, [currentPartIndex, currentStep]);
+
+  const handleBack = useCallback(() => {
+    if (currentStep > 0) {
+      setCurrentStep(prev => prev - 1);
+    } else if (currentPartIndex > 0) {
+      const prevPart = PARTS[currentPartIndex - 1];
+      setCurrentPartIndex(prev => prev - 1);
+      setCurrentStep(prevPart.steps - 1);
+    }
+  }, [currentPartIndex, currentStep]);
+
+  const handleRestart = useCallback(() => {
+    if (confirm('Are you sure you want to restart? Your progress will be lost.')) {
+      setCurrentPartIndex(0);
+      setCurrentStep(0);
+      setQuizAnswers({});
+      setQuizSubmitted({});
+      setCalculationsComplete({});
+      setExploredRabbitHoles([]);
+    }
+  }, []);
+
+  // Render content based on current part and step
+  const renderContent = () => {
+    const partId = PARTS[currentPartIndex].id;
+
+    // PART: INTRO
+    if (partId === 'intro') {
+      if (currentStep === 0) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>What if a payment never ends?</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Most financial instruments have a maturity date — a time when the payments stop and the relationship ends. But what if they didn't?
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              A <strong>perpetuity</strong> is a stream of equal cash flows that continues forever. No maturity date. No final payment. Just the same amount, period after period, into infinity.
+            </p>
+            <PerpetuityDiagram payment={100} rate={0.10} showPVs={false} />
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary }}>
+              This might sound impossible to value — how can you add up infinitely many payments? But there's a beautiful shortcut.
+            </p>
+          </div>
+        );
+      }
+      if (currentStep === 1) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Why study something that pays forever?</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              The perpetuity formula is the simplest present value formula there is. Once you understand it, more complex instruments become variations on the theme.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Perpetuities are useful for:
+            </p>
+            <ul style={{ fontSize: '16px', lineHeight: '1.8', color: COLORS.textSecondary, marginLeft: '24px', marginBottom: '16px' }}>
+              <li style={{ marginBottom: '8px' }}>Understanding the relationship between price, payment, and interest rate</li>
+              <li style={{ marginBottom: '8px' }}>Imputing interest rates from observed prices</li>
+              <li style={{ marginBottom: '8px' }}>Valuing stocks with constant dividends</li>
+              <li style={{ marginBottom: '8px' }}>Estimating "terminal values" in business valuation</li>
+            </ul>
+            <InsightBox>
+              The key isn't the math — it's the intuition. Let's start there.
+            </InsightBox>
+          </div>
+        );
+      }
+    }
+
+    // PART: INTUITION (moved before formula)
+    if (partId === 'intuition') {
+      if (currentStep === 0) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>The Interest-Only Loan</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Here's the key insight. Imagine you borrow $1,000 at 10% interest, and you only ever pay the interest — never the principal.
+            </p>
+            <InterestOnlyLoanVisual />
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginTop: '16px' }}>
+              Each year you pay $100 (= $1,000 × 10%). The principal stays at $1,000 forever. You'd pay $100 forever — that's a perpetuity!
+            </p>
+          </div>
+        );
+      }
+      if (currentStep === 1) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Flipping the Logic</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              From the lender's perspective: they gave up $1,000 today to receive $100 per year forever.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Now flip it around. If someone offers you $100 per year forever at a 10% interest rate, how much would you pay for it?
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              The answer must be $1,000 — because that's exactly the amount whose interest equals the payment:
+            </p>
+            <div style={{ background: COLORS.surfaceAlt, padding: '20px', borderRadius: '12px', marginTop: '16px', marginBottom: '16px' }}>
+              <div style={{ fontFamily: 'monospace', fontSize: '18px', color: COLORS.textPrimary, lineHeight: '2', textAlign: 'center' }}>
+                <div>Payment = Principal × Rate</div>
+                <div style={{ marginTop: '8px' }}>$100 = Principal × 10%</div>
+                <div style={{ marginTop: '8px', color: COLORS.deepDive, fontWeight: '600' }}>Principal = $100 ÷ 10% = $1,000</div>
+              </div>
+            </div>
+            <InsightBox icon={<LucideIcon name="Lightbulb" size={24} color={COLORS.gold} />}>
+              The perpetuity's value is the principal amount whose interest payments match the perpetuity's payments.
+            </InsightBox>
+          </div>
+        );
+      }
+      if (currentStep === 2) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>The General Pattern</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Let's call the payment C and the interest rate r. The perpetuity's value V must satisfy:
+            </p>
+            <div style={{ background: COLORS.surfaceAlt, padding: '20px', borderRadius: '12px', marginTop: '16px', marginBottom: '16px' }}>
+              <div style={{ fontFamily: 'monospace', fontSize: '18px', color: COLORS.textPrimary, lineHeight: '2', textAlign: 'center' }}>
+                <div>C = V × r</div>
+                <div style={{ marginTop: '12px', fontSize: '14px', color: COLORS.textSecondary }}>(the payment equals the value times the rate)</div>
+                <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${COLORS.border}` }}>Rearranging:</div>
+                <div style={{ marginTop: '8px', color: COLORS.deepDive, fontWeight: '600', fontSize: '24px' }}>V = C / r</div>
+              </div>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary }}>
+              That's the perpetuity formula. It doesn't come from summing infinite series — it comes from the simple idea that the payments must cover the interest on the principal.
+            </p>
+          </div>
+        );
+      }
+    }
+
+    // PART: FORMULA
+    if (partId === 'formula') {
+      if (currentStep === 0) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Try It Yourself</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              A perpetuity pays $50 per year forever. If the interest rate is 5%, what is it worth today?
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Think: what principal amount, invested at 5%, would generate $50 per year?
+            </p>
+            <CalculationBox
+              prompt="Value = $50 ÷ 0.05 = ?"
+              correctAnswer={1000}
+              hint1="Divide the payment by the rate: 50 ÷ 0.05"
+              hint2="That's 50 ÷ 0.05 = 1,000"
+              onCorrect={() => handleCalculationComplete('formula_basic')}
+              soundEnabled={soundEnabled}
+            />
+            {calculationsComplete['formula_basic'] && (
+              <InsightBox>
+                <strong>Exactly!</strong> $1,000 invested at 5% earns $50 per year. So a perpetuity paying $50/year at 5% is worth $1,000.
+              </InsightBox>
+            )}
+          </div>
+        );
+      }
+      if (currentStep === 1) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>The Formula</h2>
+            <FormulaDisplay />
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginTop: '16px' }}>
+              This is the perpetuity formula. It's not magic — it follows directly from the interest-only loan intuition.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginTop: '16px' }}>
+              Notice the inverse relationship: as r increases, value decreases. As r decreases, value increases. This is true for all fixed-income securities.
+            </p>
+            <PerpetuityCalculator soundEnabled={soundEnabled} />
+          </div>
+        );
+      }
+      if (currentStep === 2) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>For the Mathematically Curious</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              The intuition gives us V = C/r directly. But if you want to verify this by actually summing up the infinite series of present values, you can!
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              The rabbit hole below walks through the math — showing how the infinite sum C/(1+r) + C/(1+r)² + C/(1+r)³ + ... collapses to exactly C/r.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary }}>
+              It's a nice confirmation that our intuition was correct, but you don't need the math to use the formula.
+            </p>
+            <RabbitHoleButton
+              rabbitHole={RABBIT_HOLES.infiniteSums}
+              explored={exploredRabbitHoles.includes('infiniteSums')}
+              onClick={() => handleRabbitHoleClick('infiniteSums')}
+              soundEnabled={soundEnabled}
+            />
+          </div>
+        );
+      }
+    }
+
+    // PART: CONSOLS
+    if (partId === 'consols') {
+      if (currentStep === 0) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Consols: Perpetuities in the Real World</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Do perpetuities actually exist? Yes! The most famous example is the British <strong>consol</strong> — a government bond that paid interest forever with no maturity date.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              "Consol" is short for "consolidated annuity." The British government issued these bonds for over 250 years, and the last ones were only redeemed in 2015.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary }}>
+              Imagine holding a piece of paper that promises: "The government will pay you £3 every year, forever." That's a consol with a £100 face value and a 3% coupon rate.
+            </p>
+            <RabbitHoleButton
+              rabbitHole={RABBIT_HOLES.consolHistory}
+              explored={exploredRabbitHoles.includes('consolHistory')}
+              onClick={() => handleRabbitHoleClick('consolHistory')}
+              soundEnabled={soundEnabled}
+            />
+          </div>
+        );
+      }
+      if (currentStep === 1) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Consol Prices and Rates</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              A consol paying £100 per year would trade at different prices depending on the interest rate:
+            </p>
+            <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'monospace' }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '12px', textAlign: 'center', borderBottom: `2px solid ${COLORS.border}`, color: COLORS.textSecondary }}>If rate is...</th>
+                    <th style={{ padding: '12px', textAlign: 'center', borderBottom: `2px solid ${COLORS.border}`, color: COLORS.textSecondary }}>Consol trades at...</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}` }}>10%</td>
+                    <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}`, color: COLORS.deepDive, fontWeight: '600' }}>£1,000</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}` }}>8%</td>
+                    <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}`, color: COLORS.deepDive, fontWeight: '600' }}>£1,250</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>5%</td>
+                    <td style={{ padding: '12px', textAlign: 'center', color: COLORS.deepDive, fontWeight: '600' }}>£2,000</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <InsightBox>
+              When rates fall, consol prices rise dramatically. This inverse relationship is the foundation of fixed-income investing.
+            </InsightBox>
+          </div>
+        );
+      }
+    }
+
+    // PART: IMPUTATION
+    if (partId === 'imputation') {
+      if (currentStep === 0) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>The Flip: Finding the Interest Rate</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              So far we've used the formula to find value, given the payment and rate. But here's the real power: we can flip it.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              If we observe the market price and know the payment, we can solve for the interest rate:
+            </p>
+            <FormulaDisplay showRate={true} />
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginTop: '16px' }}>
+              This is called <strong>imputation</strong> — inferring the interest rate from observable market data.
+            </p>
+          </div>
+        );
+      }
+      if (currentStep === 1) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Imputing from Market Prices</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              A consol pays $100 per year forever. You observe it trading in the market for $1,250.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              What interest rate is the market using to value this consol?
+            </p>
+            <CalculationBox
+              prompt="r = $100 ÷ $1,250 = ?"
+              correctAnswer={0.08}
+              hint1="Divide payment by price: 100 ÷ 1250"
+              hint2="That's 0.08 or 8%"
+              onCorrect={() => handleCalculationComplete('impute_rate')}
+              soundEnabled={soundEnabled}
+              isPercent={true}
+              prefix=""
+              tolerance={0.001}
+            />
+            {calculationsComplete['impute_rate'] && (
+              <InsightBox>
+                <strong>Exactly — 8%!</strong> When the consol sells for $1,250, the market is telling us the interest rate is 8%. We didn't assume the rate — we discovered it from the price.
+              </InsightBox>
+            )}
+          </div>
+        );
+      }
+      if (currentStep === 2) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Why This Matters</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Interest rates aren't just numbers that get announced on the news. They emerge from market transactions.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              When we observe what price people actually pay for a consol, we can work backwards to find the interest rate they're using. This is how:
+            </p>
+            <ul style={{ fontSize: '16px', lineHeight: '1.8', color: COLORS.textSecondary, marginLeft: '24px', marginBottom: '16px' }}>
+              <li style={{ marginBottom: '8px' }}>Central banks monitor market expectations</li>
+              <li style={{ marginBottom: '8px' }}>Investors compare opportunities across securities</li>
+              <li style={{ marginBottom: '8px' }}>Companies decide whether to issue bonds</li>
+            </ul>
+            <InsightBox icon={<LucideIcon name="Search" size={24} color={COLORS.gold} />}>
+              The perpetuity formula lets us see the interest rate that's "baked into" any observed price. With regular bonds, this same idea works — it's just more complex math.
+            </InsightBox>
+          </div>
+        );
+      }
+    }
+
+    // PART: GROWING
+    if (partId === 'growing') {
+      if (currentStep === 0) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>What if Payments Grow?</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              A regular perpetuity pays the same amount forever. But what if payments grow at a constant rate?
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Let's say the first payment is $100, and payments grow at 3% per year:
+            </p>
+            <div style={{ background: COLORS.surfaceAlt, padding: '20px', borderRadius: '12px', marginTop: '16px', marginBottom: '16px' }}>
+              <div style={{ fontFamily: 'monospace', fontSize: '15px', color: COLORS.textPrimary, lineHeight: '2' }}>
+                <div>Year 1: $100.00</div>
+                <div>Year 2: $100 × 1.03 = $103.00</div>
+                <div>Year 3: $103 × 1.03 = $106.09</div>
+                <div>Year 4: $106.09 × 1.03 = $109.27</div>
+                <div style={{ color: COLORS.textMuted }}>... and so on forever</div>
+              </div>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary }}>
+              This is called a <strong>growing perpetuity</strong>. How do we value it?
+            </p>
+          </div>
+        );
+      }
+      if (currentStep === 1) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>The Growing Perpetuity Pattern</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              If we discount these growing payments at 8%, here's what happens:
+            </p>
+            <GrowingPVTable />
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginTop: '16px' }}>
+              Each present value is the previous one times (1.03 ÷ 1.08). The growth (1.03) partially offsets the discounting (1.08), so the PVs shrink more slowly than a regular perpetuity.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginTop: '16px' }}>
+              As long as the discount rate exceeds the growth rate (r &gt; g), the sum converges. The formula turns out to be:
+            </p>
+            <div style={{
+              background: 'white',
+              border: `2px solid ${COLORS.deepDiveBorder}`,
+              borderRadius: '12px',
+              padding: '24px',
+              marginTop: '16px',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '24px', fontFamily: 'Georgia, serif', color: COLORS.textPrimary }}>
+                Value = <span style={{ fontStyle: 'italic' }}>C</span> / (<span style={{ fontStyle: 'italic' }}>r</span> - <span style={{ fontStyle: 'italic' }}>g</span>)
+              </div>
+            </div>
+          </div>
+        );
+      }
+      if (currentStep === 2) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Calculate It</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              A growing perpetuity pays $100 in the first year, then grows at 3% forever. The interest rate is 8%.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              What is it worth today?
+            </p>
+            <CalculationBox
+              prompt="Value = $100 ÷ (0.08 - 0.03) = $100 ÷ 0.05 = ?"
+              correctAnswer={2000}
+              hint1="Divide $100 by (8% - 3%) = 5%"
+              hint2="That's $100 ÷ 0.05 = $2,000"
+              onCorrect={() => handleCalculationComplete('growing_calc')}
+              soundEnabled={soundEnabled}
+            />
+            {calculationsComplete['growing_calc'] && (
+              <InsightBox>
+                <strong>$2,000!</strong> Compare this to a flat perpetuity of $100 at 8%, which would be worth $1,250. The 3% growth adds $750 to the value — a 60% premium!
+              </InsightBox>
+            )}
+          </div>
+        );
+      }
+      if (currentStep === 3) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>The Gordon Growth Model</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              The growing perpetuity formula is famous under another name: the <strong>Gordon Growth Model</strong> (or Dividend Discount Model).
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              It's used to value stocks by assuming dividends grow at a constant rate forever:
+            </p>
+            <div style={{
+              background: 'white',
+              border: `2px solid ${COLORS.deepDiveBorder}`,
+              borderRadius: '12px',
+              padding: '24px',
+              marginTop: '16px',
+              marginBottom: '16px',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '20px', fontFamily: 'Georgia, serif', color: COLORS.textPrimary }}>
+                Stock Price = Next Dividend / (Required Return - Growth Rate)
+              </div>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary }}>
+              We'll see in a later tutorial why this approach has serious limitations for stocks — dividends aren't promised the way bond payments are.
+            </p>
+            <RabbitHoleButton
+              rabbitHole={RABBIT_HOLES.gordonModel}
+              explored={exploredRabbitHoles.includes('gordonModel')}
+              onClick={() => handleRabbitHoleClick('gordonModel')}
+              soundEnabled={soundEnabled}
+            />
+          </div>
+        );
+      }
+    }
+
+    // PART: COMPLETE
+    if (partId === 'complete') {
+      if (soundEnabled && currentStep === 0) {
+        setTimeout(() => playSound('celebration'), 300);
+      }
+      return (
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <div style={{ fontSize: '48px', marginBottom: '20px' }}>🎉</div>
+          <h2 style={{ fontSize: '28px', color: COLORS.textPrimary, marginBottom: '16px' }}>Deep Dive Complete!</h2>
+          <p style={{ fontSize: '16px', color: COLORS.textSecondary, marginBottom: '24px', maxWidth: '500px', margin: '0 auto 24px' }}>
+            You've mastered perpetuities — the simplest case for understanding present value and interest rate imputation.
+          </p>
+          <InsightBox celebration={true}>
+            <div style={{ textAlign: 'left' }}>
+              <strong>Key Takeaways:</strong>
+              <ul style={{ marginTop: '12px', marginLeft: '20px' }}>
+                <li style={{ marginBottom: '8px' }}>A perpetuity's value = payment ÷ rate (V = C/r)</li>
+                <li style={{ marginBottom: '8px' }}>This follows from the interest-only loan intuition</li>
+                <li style={{ marginBottom: '8px' }}>We can flip it to impute rates: r = C/Value</li>
+                <li style={{ marginBottom: '8px' }}>Growing perpetuities: Value = C/(r-g)</li>
+              </ul>
+            </div>
+          </InsightBox>
+          <div style={{ marginTop: '32px' }}>
+            <p style={{ fontSize: '14px', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Explored {exploredRabbitHoles.length} of {Object.keys(RABBIT_HOLES).length} rabbit holes
+            </p>
+            <a href="Tutorial-D-FindingInterestRates.html" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '14px 28px', background: COLORS.deepDive, color: 'white', textDecoration: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: '600' }}>
+              Return to Main Tutorial
+              <LucideIcon name="ArrowRight" size={20} />
+            </a>
+          </div>
+        </div>
+      );
+    }
+
+    return <div>Content not found</div>;
+  };
+
+  const canGoBack = currentPartIndex > 0 || currentStep > 0;
+  const isComplete = currentPartIndex === PARTS.length - 1;
+
+  return (
+    <div style={{ minHeight: '100vh', background: COLORS.background }}>
+      <Header
+        currentPartIndex={currentPartIndex}
+        currentStep={currentStep}
+        exploredRabbitHoles={exploredRabbitHoles}
+        onGlossaryClick={() => setShowGlossary(true)}
+        onRabbitHoleListClick={() => setShowRabbitHoleList(true)}
+        onRestartClick={handleRestart}
+        onHeaderClick={handleHeaderClick}
+        soundEnabled={soundEnabled}
+        onSoundToggle={() => setSoundEnabled(prev => !prev)}
+      />
+
+      <main style={{ maxWidth: '800px', margin: '0 auto', padding: '32px 24px' }}>
+        <div style={{ background: 'white', borderRadius: '16px', padding: '32px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          {renderContent()}
+          {!isComplete && (
+            <NavButtons
+              onBack={handleBack}
+              onContinue={handleContinue}
+              canGoBack={canGoBack}
+              canContinue={canContinue()}
+              soundEnabled={soundEnabled}
+            />
+          )}
+        </div>
+
+        {/* Dev Mode Panel */}
+        {devMode && (
+          <div style={{ marginTop: '24px', padding: '16px', background: '#fee2e2', borderRadius: '8px', border: '1px solid #fca5a5' }}>
+            <h4 style={{ margin: '0 0 12px 0', color: '#dc2626' }}>Dev Mode</h4>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {PARTS.map((part, index) => (
+                <button key={part.id} onClick={() => { setCurrentPartIndex(index); setCurrentStep(0); }} style={{ padding: '6px 12px', background: currentPartIndex === index ? '#dc2626' : 'white', color: currentPartIndex === index ? 'white' : '#dc2626', border: '1px solid #dc2626', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
+                  {index + 1}. {part.title}
+                </button>
+              ))}
+            </div>
+            <div style={{ marginTop: '12px', fontSize: '12px', color: '#dc2626' }}>
+              Part: {currentPartIndex + 1}, Step: {currentStep + 1}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Modals */}
+      {showGlossary && <GlossaryModal onClose={() => setShowGlossary(false)} />}
+
+      {showRabbitHoleList && (
+        <RabbitHoleListModal
+          exploredRabbitHoles={exploredRabbitHoles}
+          onSelectRabbitHole={handleRabbitHoleFromList}
+          onClose={() => setShowRabbitHoleList(false)}
+        />
+      )}
+
+      {activeRabbitHole && (
+        <Modal
+          title={activeRabbitHole.title}
+          onClose={() => setActiveRabbitHole(null)}
+          headerBg={COLORS.rabbitHole}
+          headerIcon={<LucideIcon name="Rabbit" size={24} />}
+        >
+          <div style={{ fontSize: '15px', lineHeight: '1.7', color: COLORS.textSecondary, whiteSpace: 'pre-line' }}>
+            {activeRabbitHole.content}
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+};
+
+// Render
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

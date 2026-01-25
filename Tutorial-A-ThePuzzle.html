@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tutorial A: The Puzzle | Time Value of Money</title>
+    <title>The Puzzle | Time Value of Money</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -61,61 +61,20 @@ const COLORS = {
   warning: '#d97706',
   warningBg: '#fffbeb',
   warningBorder: '#fcd34d',
-  rabbitHole: '#7c3aed',
-  rabbitHoleLight: '#ede9fe',
-  rabbitHoleBorder: '#a78bfa',
+  deepDive: '#0f766e',
+  deepDiveLight: '#ccfbf1',
+  deepDiveBorder: '#14b8a6',
 };
 
 // ============================================================================
-// TUTORIAL STRUCTURE
+// TUTORIAL STRUCTURE (Streamlined)
 // ============================================================================
 
 const PARTS = [
-  { id: 'welcome', title: 'Welcome', steps: 3 },
-  { id: 'whatKindOfMath', title: 'What Kind of Math?', steps: 5 },
+  { id: 'welcome', title: 'Welcome', steps: 2 },
   { id: 'thePuzzle', title: 'The Puzzle', steps: 4 },
-  { id: 'canWeDefineValue', title: 'Can We Define Value?', steps: 6 },
+  { id: 'theProblems', title: 'The Problem', steps: 3 },
 ];
-
-// ============================================================================
-// RABBIT HOLES
-// ============================================================================
-
-const RABBIT_HOLES = {
-  tickerTape: {
-    id: 'tickerTape',
-    title: 'The Ticker Tape Era',
-    content: `In the 1920s, before computers and instant messaging, stock market information traveled through ticker tape machines. These little devices punched holes in paper tape and streamed out tables of trades from the New York Stock Exchange.
-
-Rich investors were so eager for information that brokerage offices existed on cruise liners crossing the Atlantic — imagine checking your portfolio on the Titanic!
-
-Standard & Poor's emerged during this era as a company providing data on bonds and corporate securities. The S&P 500 index we use today is a direct descendant of this information revolution — 500 stocks chosen to be representative of the U.S. economy, adjusting over time from steel and auto companies to today's tech giants.`
-  },
-  
-  logScales: {
-    id: 'logScales',
-    title: 'Why Some Charts Look Straight',
-    content: `When you see a chart of the S&P 500 over decades, it curves upward dramatically. But sometimes you'll see charts where long-term growth looks like a straight line. That's a logarithmic scale.
-
-On a log scale, equal vertical distances represent equal percentage changes, not equal dollar changes. A move from $100 to $200 (100% gain) takes the same vertical space as a move from $1,000 to $2,000 (also 100% gain).
-
-This makes log scales perfect for visualizing compound growth — because compound growth IS multiplicative. The curve becomes a line, and the slope tells you the growth rate directly.
-
-When you see a financial chart, always check the axes. Is it linear or logarithmic? The shape of the line depends entirely on this choice.`
-  },
-  
-  indexInvesting: {
-    id: 'indexInvesting',
-    title: 'A Personal Aside on Investing',
-    content: `"My own personal investing: I have cash and I have S&P 500 index because I'm sort of invested in the country generally, but without taking risks in any particular stock."
-
-This is the professor's actual investment strategy. It reflects decades of financial research showing that most active investors don't beat index funds over the long term — and you pay more in fees trying.
-
-The logic: if you believe the U.S. economy will grow over your investment horizon, an index fund lets you capture that growth without betting on individual companies. You won't get rich quick, but you're unlikely to go broke either.
-
-This isn't advice — it's just transparency about how someone who has studied finance for 40 years actually invests.`
-  },
-};
 
 // ============================================================================
 // GLOSSARY
@@ -125,14 +84,6 @@ const GLOSSARY = {
   cashFlowStream: {
     term: 'Cash Flow Stream',
     definition: 'A sequence of money amounts at different points in time. Defined by how much and when.',
-  },
-  compoundGrowth: {
-    term: 'Compound Growth',
-    definition: 'Growth where the increase in each period is a percentage of the current amount, not the original amount. Creates a curved, accelerating pattern.',
-  },
-  linearGrowth: {
-    term: 'Linear Growth',
-    definition: 'Growth where the increase is the same fixed amount each period. Creates a straight line pattern.',
   },
   period: {
     term: 'Period',
@@ -153,10 +104,10 @@ const playSound = (type) => {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
-    
+
     oscillator.connect(gainNode);
     gainNode.connect(ctx.destination);
-    
+
     switch (type) {
       case 'success':
         oscillator.frequency.setValueAtTime(523.25, ctx.currentTime);
@@ -167,30 +118,12 @@ const playSound = (type) => {
         oscillator.start(ctx.currentTime);
         oscillator.stop(ctx.currentTime + 0.4);
         break;
-      case 'softNope':
-        oscillator.frequency.setValueAtTime(783.99, ctx.currentTime);
-        oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15);
-        gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-        oscillator.start(ctx.currentTime);
-        oscillator.stop(ctx.currentTime + 0.3);
-        break;
       case 'click':
         oscillator.frequency.setValueAtTime(600, ctx.currentTime);
         gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
         gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
         oscillator.start(ctx.currentTime);
         oscillator.stop(ctx.currentTime + 0.08);
-        break;
-      case 'rabbitHole':
-        oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(880, ctx.currentTime);
-        oscillator.frequency.setValueAtTime(932.33, ctx.currentTime + 0.05);
-        oscillator.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
-        gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
-        oscillator.start(ctx.currentTime);
-        oscillator.stop(ctx.currentTime + 0.25);
         break;
       default:
         break;
@@ -208,11 +141,10 @@ const playSound = (type) => {
 const calculateProgress = (currentPartIndex, currentStep) => {
   const totalSteps = PARTS.reduce((sum, p) => sum + p.steps, 0);
   const completedSteps = PARTS.slice(0, currentPartIndex).reduce((sum, p) => sum + p.steps, 0) + currentStep;
-  
-  // If we're on the very last step, show 100%
+
   const isLastStep = currentPartIndex === PARTS.length - 1 && currentStep === PARTS[currentPartIndex].steps - 1;
   if (isLastStep) return 100;
-  
+
   return Math.round((completedSteps / totalSteps) * 100);
 };
 
@@ -221,20 +153,18 @@ const calculateProgress = (currentPartIndex, currentStep) => {
 // ============================================================================
 
 // --- Header ---
-const Header = ({ 
-  currentPartIndex, 
-  currentStep, 
-  exploredRabbitHoles, 
-  onGlossaryClick, 
+const Header = ({
+  currentPartIndex,
+  currentStep,
+  onGlossaryClick,
   onRestartClick,
   onHeaderClick,
   soundEnabled,
-  onSoundToggle 
+  onSoundToggle
 }) => {
   const progress = calculateProgress(currentPartIndex, currentStep);
   const currentPart = PARTS[currentPartIndex];
-  const totalRabbitHoles = Object.keys(RABBIT_HOLES).length;
-  
+
   return (
     <header style={{
       background: COLORS.primary,
@@ -251,7 +181,7 @@ const Header = ({
           alignItems: 'center',
           marginBottom: '12px',
         }}>
-          <h1 
+          <h1
             onClick={onHeaderClick}
             style={{
               fontSize: '18px',
@@ -263,7 +193,7 @@ const Header = ({
           >
             The Puzzle
           </h1>
-          
+
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <button
               onClick={onSoundToggle}
@@ -280,22 +210,7 @@ const Header = ({
             >
               {soundEnabled ? <LucideIcon name="Volume2" size={18} /> : <LucideIcon name="VolumeX" size={18} />}
             </button>
-            
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              background: COLORS.rabbitHoleLight,
-              color: COLORS.rabbitHole,
-              padding: '4px 10px',
-              borderRadius: '12px',
-              fontSize: '13px',
-              fontWeight: '500',
-            }}>
-              <LucideIcon name="Rabbit" size={14} />
-              {exploredRabbitHoles.length}/{totalRabbitHoles}
-            </div>
-            
+
             <button
               onClick={onGlossaryClick}
               style={{
@@ -314,7 +229,7 @@ const Header = ({
               <LucideIcon name="BookOpen" size={16} />
               Glossary
             </button>
-            
+
             <button
               onClick={onRestartClick}
               style={{
@@ -332,7 +247,7 @@ const Header = ({
             </button>
           </div>
         </div>
-        
+
         <div>
           <div style={{
             display: 'flex',
@@ -344,7 +259,7 @@ const Header = ({
             <span>Part {currentPartIndex + 1}: {currentPart.title}</span>
             <span>{progress}% complete</span>
           </div>
-          
+
           <div style={{
             background: 'rgba(255,255,255,0.2)',
             borderRadius: '4px',
@@ -371,12 +286,12 @@ const NavButtons = ({ onBack, onContinue, canGoBack, canContinue, continueLabel 
     if (soundEnabled) playSound('click');
     onContinue();
   };
-  
+
   const handleBack = () => {
     if (soundEnabled) playSound('click');
     onBack();
   };
-  
+
   return (
     <div style={{
       display: 'flex',
@@ -405,7 +320,7 @@ const NavButtons = ({ onBack, onContinue, canGoBack, canContinue, continueLabel 
         <LucideIcon name="ChevronLeft" size={18} />
         Back
       </button>
-      
+
       <button
         onClick={handleContinue}
         disabled={!canContinue}
@@ -435,7 +350,7 @@ const ChoiceButton = ({ label, selected, correct, submitted, onClick, disabled }
   let background = 'white';
   let borderColor = COLORS.border;
   let textColor = COLORS.textPrimary;
-  
+
   if (selected && !submitted) {
     background = COLORS.accentLight;
     borderColor = COLORS.accent;
@@ -450,7 +365,7 @@ const ChoiceButton = ({ label, selected, correct, submitted, onClick, disabled }
       textColor = COLORS.textMuted;
     }
   }
-  
+
   return (
     <button
       onClick={onClick}
@@ -504,10 +419,33 @@ const InsightBox = ({ children, icon }) => (
   </div>
 );
 
+// --- Deep Dive Link ---
+const DeepDiveLink = ({ title, href }) => (
+  <a
+    href={href}
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      padding: '12px 16px',
+      border: `1px solid ${COLORS.deepDiveBorder}`,
+      borderRadius: '8px',
+      background: COLORS.deepDiveLight,
+      color: COLORS.deepDive,
+      textDecoration: 'none',
+      fontSize: '14px',
+      marginTop: '16px',
+    }}
+  >
+    <LucideIcon name="Layers" size={18} style={{ flexShrink: 0 }} />
+    <span>For more on this, see the Deep Dive: <strong>{title}</strong></span>
+  </a>
+);
+
 // --- Cash Flow Diagram ---
 const CashFlowDiagram = ({ flows, highlightPeriod, label }) => {
   const maxPeriod = Math.max(...flows.map(f => f.period));
-  
+
   return (
     <div style={{
       background: COLORS.surfaceAlt,
@@ -527,7 +465,7 @@ const CashFlowDiagram = ({ flows, highlightPeriod, label }) => {
           {label}
         </div>
       )}
-      
+
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -544,11 +482,11 @@ const CashFlowDiagram = ({ flows, highlightPeriod, label }) => {
           height: '2px',
           background: COLORS.borderDark,
         }} />
-        
+
         {Array.from({ length: maxPeriod + 1 }, (_, i) => {
           const flow = flows.find(f => f.period === i);
           const isHighlighted = highlightPeriod === i;
-          
+
           return (
             <div key={i} style={{
               display: 'flex',
@@ -557,7 +495,7 @@ const CashFlowDiagram = ({ flows, highlightPeriod, label }) => {
               position: 'relative',
               flex: 1,
             }}>
-              {flow && (
+              {flow && flow.amount > 0 && (
                 <div style={{
                   background: isHighlighted ? COLORS.primary : 'white',
                   color: isHighlighted ? 'white' : COLORS.textPrimary,
@@ -572,24 +510,24 @@ const CashFlowDiagram = ({ flows, highlightPeriod, label }) => {
                   ${flow.amount.toFixed(2)}
                 </div>
               )}
-              
-              {flow && (
+
+              {flow && flow.amount > 0 && (
                 <div style={{
                   width: '2px',
                   height: '20px',
                   background: isHighlighted ? COLORS.primary : COLORS.borderDark,
                 }} />
               )}
-              
+
               <div style={{
                 width: '12px',
                 height: '12px',
                 borderRadius: '50%',
-                background: flow ? (isHighlighted ? COLORS.primary : COLORS.textSecondary) : COLORS.border,
+                background: (flow && flow.amount > 0) ? (isHighlighted ? COLORS.primary : COLORS.textSecondary) : COLORS.border,
                 position: 'absolute',
                 bottom: '14px',
               }} />
-              
+
               <span style={{
                 position: 'absolute',
                 bottom: '-8px',
@@ -601,117 +539,6 @@ const CashFlowDiagram = ({ flows, highlightPeriod, label }) => {
             </div>
           );
         })}
-      </div>
-    </div>
-  );
-};
-
-// --- Rabbit Hole Button ---
-const RabbitHoleButton = ({ rabbitHole, explored, onClick, soundEnabled }) => {
-  const handleClick = () => {
-    if (soundEnabled) playSound('rabbitHole');
-    onClick();
-  };
-  
-  return (
-    <button
-      onClick={handleClick}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        width: '100%',
-        padding: '14px 16px',
-        border: `2px dashed ${COLORS.rabbitHoleBorder}`,
-        borderRadius: '10px',
-        background: explored ? COLORS.rabbitHoleLight : 'white',
-        color: COLORS.rabbitHole,
-        cursor: 'pointer',
-        fontSize: '14px',
-        textAlign: 'left',
-        marginTop: '16px',
-        transition: 'all 0.2s ease',
-      }}
-    >
-      <LucideIcon name="Rabbit" size={20} style={{ flexShrink: 0 }} />
-      <span style={{ flex: 1 }}>{rabbitHole.title}</span>
-      {explored && <LucideIcon name="Check" size={18} />}
-    </button>
-  );
-};
-
-// --- Rabbit Hole Modal ---
-const RabbitHoleModal = ({ rabbitHole, onClose }) => {
-  if (!rabbitHole) return null;
-  
-  return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0,0,0,0.5)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-      zIndex: 1000,
-    }}>
-      <div style={{
-        background: 'white',
-        borderRadius: '16px',
-        maxWidth: '600px',
-        maxHeight: '80vh',
-        overflow: 'auto',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-      }}>
-        <div style={{
-          background: COLORS.rabbitHole,
-          color: 'white',
-          padding: '20px 24px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-        }}>
-          <LucideIcon name="Rabbit" size={24} />
-          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600' }}>
-            {rabbitHole.title}
-          </h2>
-        </div>
-        
-        <div style={{
-          padding: '24px',
-          fontSize: '15px',
-          lineHeight: '1.7',
-          color: COLORS.textPrimary,
-        }}>
-          {rabbitHole.content.split('\n\n').map((paragraph, i) => (
-            <p key={i} style={{ margin: i === 0 ? 0 : '16px 0 0 0' }}>
-              {paragraph}
-            </p>
-          ))}
-        </div>
-        
-        <div style={{
-          padding: '16px 24px',
-          borderTop: `1px solid ${COLORS.border}`,
-          display: 'flex',
-          justifyContent: 'flex-end',
-        }}>
-          <button
-            onClick={onClose}
-            style={{
-              padding: '10px 24px',
-              border: 'none',
-              borderRadius: '8px',
-              background: COLORS.rabbitHole,
-              color: 'white',
-              fontSize: '15px',
-              fontWeight: '500',
-              cursor: 'pointer',
-            }}
-          >
-            Back to Tutorial
-          </button>
-        </div>
       </div>
     </div>
   );
@@ -748,7 +575,7 @@ const GlossaryModal = ({ onClose }) => (
         <LucideIcon name="BookOpen" size={24} />
         <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600' }}>Glossary</h2>
       </div>
-      
+
       <div style={{ padding: '16px 24px' }}>
         {Object.values(GLOSSARY).map((item, i) => (
           <div key={item.term} style={{
@@ -774,7 +601,7 @@ const GlossaryModal = ({ onClose }) => (
           </div>
         ))}
       </div>
-      
+
       <div style={{
         padding: '16px 24px',
         borderTop: `1px solid ${COLORS.border}`,
@@ -827,7 +654,7 @@ const DevModePanel = ({ onJumpToPart, currentPartIndex, onClose }) => (
         <LucideIcon name="X" size={18} />
       </button>
     </div>
-    
+
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
       {PARTS.map((part, index) => (
         <button
@@ -856,11 +683,11 @@ const DevModePanel = ({ onJumpToPart, currentPartIndex, onClose }) => (
 // ============================================================================
 
 // --- Part 1: Welcome ---
-const WelcomePart = ({ step, onStepComplete }) => {
+const WelcomePart = ({ step }) => {
   const content = [
-    // Step 0: Hook
+    // Step 0: Hook - "Which is worth more?"
     <>
-      <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>Which would you prefer?</h2>
+      <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>Which is worth more?</h2>
       <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
         <div style={{
           flex: 1,
@@ -894,52 +721,14 @@ const WelcomePart = ({ step, onStepComplete }) => {
         </div>
       </div>
       <p style={{ color: COLORS.textSecondary, lineHeight: '1.6' }}>
-        This seems like a simple question. But as we'll discover, it's actually impossible to answer — at least, not without adding something to the picture.
+        Think about it for a moment. Surely one of these is worth more than the other?
       </p>
       <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginTop: '12px' }}>
-        By the end of this tutorial, you'll understand why.
+        By the end of this tutorial, you'll see why this question is harder than it looks.
       </p>
     </>,
-    
-    // Step 1: What we'll cover
-    <>
-      <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>What we'll explore</h2>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {[
-          { icon: <LucideIcon name="TrendingUp" size={20} />, text: 'Why financial growth is curved, not straight' },
-          { icon: <LucideIcon name="HelpCircle" size={20} />, text: 'A puzzle that seems impossible to solve' },
-          { icon: <LucideIcon name="Lightbulb" size={20} />, text: 'Why "value" is harder to define than you might think' },
-        ].map((item, i) => (
-          <div key={i} style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            padding: '12px 16px',
-            background: COLORS.surfaceAlt,
-            borderRadius: '8px',
-          }}>
-            <div style={{ color: COLORS.primary }}>{item.icon}</div>
-            <span style={{ color: COLORS.textPrimary }}>{item.text}</span>
-          </div>
-        ))}
-      </div>
-      <div style={{
-        marginTop: '24px',
-        padding: '12px 16px',
-        background: COLORS.accentLight,
-        borderRadius: '8px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-      }}>
-        <LucideIcon name="Clock" size={18} color={COLORS.accent} />
-        <span style={{ fontSize: '14px', color: COLORS.accent }}>
-          About 15 minutes · Optional explorations available
-        </span>
-      </div>
-    </>,
-    
-    // Step 2: A note on assumptions
+
+    // Step 1: A note before we begin
     <>
       <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>A note before we begin</h2>
       <p style={{ color: COLORS.textSecondary, lineHeight: '1.6' }}>
@@ -959,299 +748,44 @@ const WelcomePart = ({ step, onStepComplete }) => {
         borderLeft: `4px solid ${COLORS.gold}`,
       }}>
         <p style={{ margin: 0, color: COLORS.textPrimary, fontSize: '14px' }}>
-          <strong>We're talking about financial value only.</strong> Not what you value personally — kindness, family, meaning. Just money. That's obviously not everything, but it's what we can measure.
+          <strong>We're talking about money only.</strong> Not what you value personally — kindness, family, meaning. Just cash amounts at different points in time. We can certainly calculate with these numbers. But do the calculations tell us what a cash flow stream is <em>worth</em>? That's what we're here to figure out.
         </p>
       </div>
     </>,
   ];
-  
+
   return content[step] || null;
 };
 
-// --- Part 2: What Kind of Math? ---
-const WhatKindOfMathPart = ({ step, onAnswer, answers, soundEnabled, onRabbitHole, exploredRabbitHoles }) => {
-  const content = [
-    // Step 0: S&P 500 intro
-    <>
-      <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>The S&P 500</h2>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6' }}>
-        Let's start by looking at something real: the S&P 500 index. It tracks 500 large U.S. companies, chosen to be representative of the economy.
-      </p>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginTop: '12px' }}>
-        Here's how it's grown over the past century — from about 320 in the 1920s to over 6,000 today.
-      </p>
-      <div style={{
-        marginTop: '20px',
-        padding: '24px',
-        background: COLORS.surfaceAlt,
-        borderRadius: '12px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'stretch' }}>
-          {/* Y-axis labels */}
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            paddingRight: '8px',
-            fontSize: '11px',
-            color: COLORS.textMuted,
-            height: '120px',
-          }}>
-            <span>$10,000</span>
-            <span>$100</span>
-            <span>$1</span>
-          </div>
-          {/* Chart area */}
-          <div style={{ flex: 1 }}>
-            <div style={{
-              height: '120px',
-              display: 'flex',
-              alignItems: 'flex-end',
-              justifyContent: 'space-between',
-              paddingBottom: '8px',
-              borderBottom: `2px solid ${COLORS.borderDark}`,
-              borderLeft: `2px solid ${COLORS.borderDark}`,
-              paddingLeft: '8px',
-            }}>
-              {/* Simplified S&P chart visualization */}
-              {/* Data shows growth with one visible drop (index 4 drops from 12 to 5) */}
-              {[5, 6, 8, 12, 5, 18, 25, 35, 50, 70, 100].map((h, i) => (
-                <div key={i} style={{
-                  width: '8%',
-                  height: `${h}%`,
-                  background: i === 4 ? COLORS.warning : COLORS.primary,
-                  borderRadius: '2px 2px 0 0',
-                }} />
-              ))}
-            </div>
-            {/* X-axis labels */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              marginTop: '8px',
-              fontSize: '12px',
-              color: COLORS.textMuted,
-              paddingLeft: '8px',
-            }}>
-              <span>1920s</span>
-              <span>Time →</span>
-              <span>Today</span>
-            </div>
-          </div>
-        </div>
-        {/* Y-axis label */}
-        <p style={{ color: COLORS.textMuted, fontSize: '11px', marginTop: '8px', textAlign: 'center' }}>
-          Value of $1 invested (log scale, simplified)
-        </p>
-      </div>
-      <RabbitHoleButton
-        rabbitHole={RABBIT_HOLES.tickerTape}
-        explored={exploredRabbitHoles.includes('tickerTape')}
-        onClick={() => onRabbitHole('tickerTape')}
-        soundEnabled={soundEnabled}
-      />
-    </>,
-    
-    // Step 1: What do you notice?
-    <>
-      <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>What do you notice?</h2>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginBottom: '20px' }}>
-        Look at the shape of that growth. What stands out?
-      </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <ChoiceButton
-          label="It trends upward over time"
-          selected={answers.shape === 'upward'}
-          correct={true}
-          submitted={answers.shapeSubmitted}
-          onClick={() => onAnswer('shape', 'upward')}
-        />
-        <ChoiceButton
-          label="It's curved — growth accelerates"
-          selected={answers.shape === 'curved'}
-          correct={true}
-          submitted={answers.shapeSubmitted}
-          onClick={() => onAnswer('shape', 'curved')}
-        />
-        <ChoiceButton
-          label="There are big drops sometimes (like 1929)"
-          selected={answers.shape === 'drops'}
-          correct={true}
-          submitted={answers.shapeSubmitted}
-          onClick={() => onAnswer('shape', 'drops')}
-        />
-      </div>
-      {answers.shape && !answers.shapeSubmitted && (
-        <button
-          onClick={() => {
-            if (soundEnabled) playSound('success');
-            onAnswer('shapeSubmitted', true);
-          }}
-          style={{
-            marginTop: '16px',
-            padding: '10px 20px',
-            background: COLORS.primary,
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '15px',
-          }}
-        >
-          Submit
-        </button>
-      )}
-      {answers.shapeSubmitted && (
-        <div style={{
-          marginTop: '16px',
-          padding: '16px',
-          background: COLORS.successBg,
-          borderRadius: '8px',
-          color: COLORS.textPrimary,
-        }}>
-          <strong>All of these are right!</strong> The trend is upward, the growth accelerates (it's curved, not straight), and there are sometimes dramatic drops. Let's focus on that curve.
-        </div>
-      )}
-    </>,
-    
-    // Step 2: Straight vs curved
-    <>
-      <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>Straight lines vs. curves</h2>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6' }}>
-        If all you knew was "it goes up," you might draw a straight line. But that's not what we see.
-      </p>
-      <div style={{
-        display: 'flex',
-        gap: '20px',
-        marginTop: '20px',
-        flexWrap: 'wrap',
-      }}>
-        <div style={{
-          flex: 1,
-          minWidth: '200px',
-          padding: '20px',
-          background: COLORS.surfaceAlt,
-          borderRadius: '12px',
-        }}>
-          <div style={{ fontSize: '14px', fontWeight: '600', color: COLORS.textSecondary, marginBottom: '12px' }}>
-            Linear growth
-          </div>
-          <div style={{ height: '80px', display: 'flex', alignItems: 'flex-end' }}>
-            <div style={{
-              width: '100%',
-              height: '2px',
-              background: COLORS.textMuted,
-              transform: 'rotate(-20deg)',
-              transformOrigin: 'bottom left',
-            }} />
-          </div>
-          <div style={{ fontSize: '13px', color: COLORS.textMuted, marginTop: '12px' }}>
-            Same amount added each period
-          </div>
-        </div>
-        <div style={{
-          flex: 1,
-          minWidth: '200px',
-          padding: '20px',
-          background: COLORS.accentLight,
-          borderRadius: '12px',
-          border: `2px solid ${COLORS.accent}`,
-        }}>
-          <div style={{ fontSize: '14px', fontWeight: '600', color: COLORS.accent, marginBottom: '12px' }}>
-            Compound growth ✓
-          </div>
-          <div style={{ height: '80px', position: 'relative' }}>
-            <svg width="100%" height="100%" viewBox="0 0 100 80">
-              <path
-                d="M 0 70 Q 50 65 70 40 T 100 5"
-                fill="none"
-                stroke={COLORS.primary}
-                strokeWidth="2"
-              />
-            </svg>
-          </div>
-          <div style={{ fontSize: '13px', color: COLORS.accent, marginTop: '12px' }}>
-            Growth is a percentage of current value
-          </div>
-        </div>
-      </div>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginTop: '20px' }}>
-        With linear growth, you add the same amount each period. With compound growth, you add a <em>percentage</em> of wherever you currently are — so as the amount grows, the growth itself gets bigger.
-      </p>
-    </>,
-    
-    // Step 3: The math is weird
-    <>
-      <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>Don't underestimate the weirdness</h2>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6' }}>
-        Remember when you first learned about parabolas in algebra? Moving from straight lines (y = mx + b) to curves (y = x²) was probably a significant jump.
-      </p>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginTop: '12px' }}>
-        Compound growth is similar territory. The math isn't complicated — it's just multiplication — but thinking in multiplicative terms doesn't come naturally.
-      </p>
-      <InsightBox>
-        If you find this weird, you're in good company. Even experts get caught by compound growth. It's been called "the most powerful force in the universe" (though Einstein probably never actually said that).
-        <br /><br />
-        Give yourself permission to find this strange. Then work through it anyway.
-      </InsightBox>
-      <RabbitHoleButton
-        rabbitHole={RABBIT_HOLES.logScales}
-        explored={exploredRabbitHoles.includes('logScales')}
-        onClick={() => onRabbitHole('logScales')}
-        soundEnabled={soundEnabled}
-      />
-    </>,
-    
-    // Step 4: Personal aside
-    <>
-      <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>Why this matters</h2>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6' }}>
-        The S&P 500's growth is a <strong>compounding</strong> process. Understanding compound growth isn't just academic — it's how your retirement savings work, how loans accumulate, how economies grow.
-      </p>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginTop: '12px' }}>
-        We're going to work through the mechanics of this step by step. But first, let's see why it creates a problem.
-      </p>
-      <RabbitHoleButton
-        rabbitHole={RABBIT_HOLES.indexInvesting}
-        explored={exploredRabbitHoles.includes('indexInvesting')}
-        onClick={() => onRabbitHole('indexInvesting')}
-        soundEnabled={soundEnabled}
-      />
-    </>,
-  ];
-  
-  return content[step] || null;
-};
-
-// --- Part 3: The Puzzle ---
+// --- Part 2: The Puzzle ---
 const ThePuzzlePart = ({ step, onAnswer, answers, soundEnabled }) => {
   const content = [
     // Step 0: Present the two streams
     <>
       <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>Two cash flow streams</h2>
       <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginBottom: '20px' }}>
-        Here are two options. Let's call them Stream A and Stream B.
+        Let's make the comparison concrete. Here's a way to visualize the two options from our opening question — as <strong>cash flow streams</strong> on a timeline.
       </p>
-      
+
       <CashFlowDiagram
-        flows={[{ period: 0, amount: 83.96 }]}
+        flows={[{ period: 0, amount: 83.96 }, { period: 1, amount: 0 }, { period: 2, amount: 0 }, { period: 3, amount: 0 }]}
         highlightPeriod={0}
         label="Stream A"
       />
-      
+
       <CashFlowDiagram
         flows={[{ period: 0, amount: 0 }, { period: 1, amount: 0 }, { period: 2, amount: 0 }, { period: 3, amount: 100 }]}
         highlightPeriod={3}
         label="Stream B"
       />
-      
+
       <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginTop: '16px' }}>
         Stream A gives you $83.96 right now (Time 0).
         <br />
-        Stream B gives you $100.00 at Time 3 (three periods from now).
+        Stream B gives you $100.00 at Time 3.
       </p>
     </>,
-    
+
     // Step 1: The rules
     <>
       <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>The rules</h2>
@@ -1294,7 +828,7 @@ const ThePuzzlePart = ({ step, onAnswer, answers, soundEnabled }) => {
         (This constraint will matter. We're removing other options on purpose.)
       </p>
     </>,
-    
+
     // Step 2: Which do you prefer?
     <>
       <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>Which do you prefer?</h2>
@@ -1328,7 +862,7 @@ const ThePuzzlePart = ({ step, onAnswer, answers, soundEnabled }) => {
         </div>
       )}
     </>,
-    
+
     // Step 3: But wait...
     <>
       <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>But wait...</h2>
@@ -1384,14 +918,14 @@ const ThePuzzlePart = ({ step, onAnswer, answers, soundEnabled }) => {
       </p>
     </>,
   ];
-  
+
   return content[step] || null;
 };
 
-// --- Part 4: Can We Define Value? ---
-const CanWeDefineValuePart = ({ step, onAnswer, answers, soundEnabled }) => {
+// --- Part 3: The Problem ---
+const TheProblemPart = ({ step, onAnswer, answers, soundEnabled }) => {
   const content = [
-    // Step 0: Both are right
+    // Step 0: Both are right + bridge
     <>
       <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>Who's right?</h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
@@ -1442,46 +976,23 @@ const CanWeDefineValuePart = ({ step, onAnswer, answers, soundEnabled }) => {
         </InsightBox>
       )}
     </>,
-    
-    // Step 1: The measurement problem
+
+    // Step 1: Bridge + The problem
     <>
-      <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>The measurement problem</h2>
+      <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>So both are right. But here's why that's a problem.</h2>
       <p style={{ color: COLORS.textSecondary, lineHeight: '1.6' }}>
-        To <em>measure</em> something means to assign numbers to it in a way that captures some property we care about.
+        If you asked me "which stick is longer?" I could measure them and give you a definitive answer. The answer doesn't depend on who's asking.
       </p>
       <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginTop: '12px' }}>
-        Think about measuring <strong>length</strong>. My ruler and your ruler give the same answer. The measurement doesn't depend on who's measuring. The stick has a length; we measure it; done.
-      </p>
-      <div style={{
-        marginTop: '20px',
-        padding: '16px 20px',
-        background: COLORS.surfaceAlt,
-        borderRadius: '10px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '16px',
-      }}>
-        <div style={{ fontSize: '32px' }}>📏</div>
-        <div>
-          <div style={{ fontWeight: '600', color: COLORS.textPrimary }}>Length is measurable</div>
-          <div style={{ fontSize: '14px', color: COLORS.textSecondary }}>Everyone's ruler gives the same answer</div>
-        </div>
-      </div>
-    </>,
-    
-    // Step 2: Value doesn't work this way
-    <>
-      <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>Value doesn't work this way</h2>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6' }}>
-        Now try to "measure" the value of Stream A versus Stream B.
+        But if you ask "which cash flow stream is worth more?" — we just saw that the answer <em>does</em> depend on who's asking. The hungry person and the full person give opposite answers, and neither is wrong.
       </p>
       <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginTop: '12px' }}>
-        If I ask "what number captures the value of Stream A?" — there's no single answer. The number depends on <em>who's doing the measuring</em>.
+        <strong>This personal nature of value has to be overcome before we have any chance at measurement.</strong>
       </p>
       <div style={{
         display: 'flex',
         gap: '16px',
-        marginTop: '20px',
+        marginTop: '24px',
         flexWrap: 'wrap',
       }}>
         <div style={{
@@ -1505,62 +1016,14 @@ const CanWeDefineValuePart = ({ step, onAnswer, answers, soundEnabled }) => {
           <div style={{ fontSize: '14px', color: COLORS.textSecondary }}>Stream B &gt; Stream A</div>
         </div>
       </div>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginTop: '20px' }}>
-        Unlike length, where two people measuring the same stick get the same answer, two people "measuring" the value of the same cash flow stream get <strong>different answers</strong>.
-      </p>
+
+      <DeepDiveLink
+        title="Can We Measure Value?"
+        href="Tutorial-DeepDive-CanWeMeasureValue.html"
+      />
     </>,
-    
-    // Step 3: No function exists
-    <>
-      <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>No single function can work</h2>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6' }}>
-        If we wanted to create a "value function" — some formula V that assigns a number to any cash flow stream — we'd need it to satisfy everyone's preferences.
-      </p>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginTop: '12px' }}>
-        But to capture the hungry person's preferences: V(A) &gt; V(B)
-        <br />
-        And to capture the full person's preferences: V(B) &gt; V(A)
-      </p>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginTop: '12px' }}>
-        No single function can do both. We'd need a different value function for each person.
-      </p>
-      <div style={{
-        marginTop: '20px',
-        padding: '16px 20px',
-        background: COLORS.warningBg,
-        borderRadius: '10px',
-        borderLeft: `4px solid ${COLORS.warning}`,
-      }}>
-        <p style={{ margin: 0, color: COLORS.textPrimary }}>
-          <strong>This means value — as we normally think about it — can't be measured.</strong> There's no single number that captures "the value" of a cash flow stream, because the number depends on who's doing the measuring.
-        </p>
-      </div>
-    </>,
-    
-    // Step 4: We're stuck
-    <>
-      <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>We're stuck</h2>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6' }}>
-        So where does that leave us? If we want to have sensible conversations about financial value, we can't just rely on individual preferences. People disagree, and there's no way to say who's "right."
-      </p>
-      <p style={{ color: COLORS.textSecondary, lineHeight: '1.6', marginTop: '12px' }}>
-        We need something more. We need to change the setting.
-      </p>
-      <div style={{
-        marginTop: '24px',
-        padding: '20px',
-        background: COLORS.surfaceAlt,
-        borderRadius: '12px',
-        textAlign: 'center',
-      }}>
-        <LucideIcon name="HelpCircle" size={40} color={COLORS.textMuted} style={{ marginBottom: '12px' }} />
-        <p style={{ margin: 0, color: COLORS.textSecondary }}>
-          What could we add to this picture that would let us define value in a way that doesn't depend on individual preferences?
-        </p>
-      </div>
-    </>,
-    
-    // Step 5: The insight
+
+    // Step 2: The key insight
     <>
       <h2 style={{ color: COLORS.primary, marginBottom: '16px' }}>The key insight</h2>
       <InsightBox>
@@ -1583,13 +1046,13 @@ const CanWeDefineValuePart = ({ step, onAnswer, answers, soundEnabled }) => {
         color: 'white',
       }}>
         <span style={{ fontWeight: '500' }}>
-          Next: Tutorial B — The Machine
+          Next: The Machine
         </span>
         <LucideIcon name="ArrowRight" size={20} />
       </a>
     </>,
   ];
-  
+
   return content[step] || null;
 };
 
@@ -1597,39 +1060,28 @@ const CanWeDefineValuePart = ({ step, onAnswer, answers, soundEnabled }) => {
 // MAIN TUTORIAL COMPONENT
 // ============================================================================
 
-const Tutorial02A = () => {
+const ThePuzzleTutorial = () => {
   // Navigation state
   const [currentPartIndex, setCurrentPartIndex] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  
+
   // Modal state
   const [showGlossary, setShowGlossary] = useState(false);
-  const [activeRabbitHole, setActiveRabbitHole] = useState(null);
-  
-  // Tracking state
-  const [exploredRabbitHoles, setExploredRabbitHoles] = useState([]);
-  
+
   // Answer state
   const [answers, setAnswers] = useState({});
-  
+
   // Dev mode
   const [devMode, setDevMode] = useState(false);
   const [headerClickCount, setHeaderClickCount] = useState(0);
   const [lastClickTime, setLastClickTime] = useState(0);
-  
+
   // Handlers
   const handleAnswer = useCallback((key, value) => {
     setAnswers(prev => ({ ...prev, [key]: value }));
   }, []);
-  
-  const handleRabbitHole = useCallback((id) => {
-    setActiveRabbitHole(RABBIT_HOLES[id]);
-    if (!exploredRabbitHoles.includes(id)) {
-      setExploredRabbitHoles(prev => [...prev, id]);
-    }
-  }, [exploredRabbitHoles]);
-  
+
   const handleContinue = useCallback(() => {
     const currentPart = PARTS[currentPartIndex];
     if (currentStep < currentPart.steps - 1) {
@@ -1639,7 +1091,7 @@ const Tutorial02A = () => {
       setCurrentStep(0);
     }
   }, [currentPartIndex, currentStep]);
-  
+
   const handleBack = useCallback(() => {
     if (currentStep > 0) {
       setCurrentStep(prev => prev - 1);
@@ -1649,16 +1101,15 @@ const Tutorial02A = () => {
       setCurrentStep(PARTS[prevPartIndex].steps - 1);
     }
   }, [currentPartIndex, currentStep]);
-  
+
   const handleRestart = useCallback(() => {
     if (window.confirm('Restart this tutorial? Your progress will be lost.')) {
       setCurrentPartIndex(0);
       setCurrentStep(0);
       setAnswers({});
-      setExploredRabbitHoles([]);
     }
   }, []);
-  
+
   const handleHeaderClick = useCallback(() => {
     const now = Date.now();
     if (now - lastClickTime < 500) {
@@ -1673,52 +1124,36 @@ const Tutorial02A = () => {
     }
     setLastClickTime(now);
   }, [headerClickCount, lastClickTime]);
-  
+
   const handleJumpToPart = useCallback((partIndex) => {
     setCurrentPartIndex(partIndex);
     setCurrentStep(0);
   }, []);
-  
+
   // Determine if continue is allowed
   const canContinue = useCallback(() => {
     const partId = PARTS[currentPartIndex].id;
-    
-    // Part 2, Step 1: Need to submit shape answer
-    if (partId === 'whatKindOfMath' && currentStep === 1) {
-      return answers.shapeSubmitted === true;
-    }
-    
-    // Part 3, Step 2: Need to pick a preference
+
+    // Part 2, Step 2: Need to pick a preference
     if (partId === 'thePuzzle' && currentStep === 2) {
       return answers.preference !== undefined;
     }
-    
-    // Part 4, Step 0: Need to submit who's right answer
-    if (partId === 'canWeDefineValue' && currentStep === 0) {
+
+    // Part 3, Step 0: Need to submit who's right answer
+    if (partId === 'theProblems' && currentStep === 0) {
       return answers.whoRightSubmitted === true;
     }
-    
+
     return true;
   }, [currentPartIndex, currentStep, answers]);
-  
+
   // Render current content
   const renderContent = () => {
     const partId = PARTS[currentPartIndex].id;
-    
+
     switch (partId) {
       case 'welcome':
         return <WelcomePart step={currentStep} />;
-      case 'whatKindOfMath':
-        return (
-          <WhatKindOfMathPart
-            step={currentStep}
-            onAnswer={handleAnswer}
-            answers={answers}
-            soundEnabled={soundEnabled}
-            onRabbitHole={handleRabbitHole}
-            exploredRabbitHoles={exploredRabbitHoles}
-          />
-        );
       case 'thePuzzle':
         return (
           <ThePuzzlePart
@@ -1728,9 +1163,9 @@ const Tutorial02A = () => {
             soundEnabled={soundEnabled}
           />
         );
-      case 'canWeDefineValue':
+      case 'theProblems':
         return (
-          <CanWeDefineValuePart
+          <TheProblemPart
             step={currentStep}
             onAnswer={handleAnswer}
             answers={answers}
@@ -1741,10 +1176,10 @@ const Tutorial02A = () => {
         return null;
     }
   };
-  
+
   const currentPart = PARTS[currentPartIndex];
   const isLastStep = currentPartIndex === PARTS.length - 1 && currentStep === currentPart.steps - 1;
-  
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -1754,14 +1189,13 @@ const Tutorial02A = () => {
       <Header
         currentPartIndex={currentPartIndex}
         currentStep={currentStep}
-        exploredRabbitHoles={exploredRabbitHoles}
         onGlossaryClick={() => setShowGlossary(true)}
         onRestartClick={handleRestart}
         onHeaderClick={handleHeaderClick}
         soundEnabled={soundEnabled}
         onSoundToggle={() => setSoundEnabled(prev => !prev)}
       />
-      
+
       <main style={{
         maxWidth: '800px',
         margin: '0 auto',
@@ -1774,7 +1208,7 @@ const Tutorial02A = () => {
           boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
         }}>
           {renderContent()}
-          
+
           <NavButtons
             onBack={handleBack}
             onContinue={handleContinue}
@@ -1824,12 +1258,6 @@ const Tutorial02A = () => {
 
       {/* Modals */}
       {showGlossary && <GlossaryModal onClose={() => setShowGlossary(false)} />}
-      {activeRabbitHole && (
-        <RabbitHoleModal
-          rabbitHole={activeRabbitHole}
-          onClose={() => setActiveRabbitHole(null)}
-        />
-      )}
       {devMode && (
         <DevModePanel
           onJumpToPart={handleJumpToPart}
@@ -1841,10 +1269,8 @@ const Tutorial02A = () => {
   );
 };
 
-
-
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<Tutorial02A />);
+root.render(<ThePuzzleTutorial />);
     </script>
 </body>
 </html>

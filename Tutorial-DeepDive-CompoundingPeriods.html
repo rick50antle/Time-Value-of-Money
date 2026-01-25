@@ -361,6 +361,7 @@ Continuous compounding shows up in options pricing (Black-Scholes) and theoretic
       exploredRabbitHoles,
       totalRabbitHoles,
       onGlossaryClick,
+      onRabbitHoleListClick,
       onRestartClick,
       onHeaderClick,
       soundEnabled,
@@ -416,20 +417,27 @@ Continuous compounding shows up in options pricing (Black-Scholes) and theoretic
                   {soundEnabled ? <LucideIcon name="Volume2" size={18} /> : <LucideIcon name="VolumeX" size={18} />}
                 </button>
 
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  background: COLORS.rabbitHoleLight,
-                  color: COLORS.rabbitHole,
-                  padding: '4px 10px',
-                  borderRadius: '12px',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                }}>
+                <button
+                  onClick={onRabbitHoleListClick}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: COLORS.rabbitHoleLight,
+                    color: COLORS.rabbitHole,
+                    padding: '4px 10px',
+                    borderRadius: '12px',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                  title="View all rabbit holes"
+                >
                   <LucideIcon name="Rabbit" size={14} />
-                  {exploredRabbitHoles.length}/{totalRabbitHoles}
-                </div>
+                  <span>{exploredRabbitHoles.length}/{totalRabbitHoles}</span>
+                </button>
 
                 <button
                   onClick={onGlossaryClick}
@@ -1200,6 +1208,110 @@ Continuous compounding shows up in options pricing (Black-Scholes) and theoretic
         </div>
       );
     };
+
+    // --- Rabbit Hole List Modal ---
+    const RabbitHoleListModal = ({ exploredRabbitHoles, onSelectRabbitHole, onClose }) => (
+      <div style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+        zIndex: 1000,
+      }}>
+        <div style={{
+          background: 'white',
+          borderRadius: '16px',
+          maxWidth: '500px',
+          width: '100%',
+          maxHeight: '80vh',
+          overflow: 'auto',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        }}>
+          {/* Header */}
+          <div style={{
+            background: COLORS.rabbitHole,
+            color: 'white',
+            padding: '20px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}>
+            <LucideIcon name="Rabbit" size={24} />
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+              Rabbit Holes
+            </h2>
+            <span style={{
+              marginLeft: 'auto',
+              background: 'rgba(255,255,255,0.2)',
+              padding: '4px 10px',
+              borderRadius: '12px',
+              fontSize: '13px',
+            }}>
+              {exploredRabbitHoles.length}/{Object.keys(RABBIT_HOLES).length} explored
+            </span>
+          </div>
+
+          {/* Content */}
+          <div style={{ padding: '16px' }}>
+            {Object.values(RABBIT_HOLES).map((rabbitHole) => {
+              const isExplored = exploredRabbitHoles.includes(rabbitHole.id);
+              return (
+                <button
+                  key={rabbitHole.id}
+                  onClick={() => onSelectRabbitHole(rabbitHole)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    width: '100%',
+                    padding: '14px 16px',
+                    marginBottom: '8px',
+                    border: `2px solid ${isExplored ? COLORS.rabbitHoleBorder : COLORS.border}`,
+                    borderRadius: '10px',
+                    background: isExplored ? COLORS.rabbitHoleLight : 'white',
+                    color: COLORS.textPrimary,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <LucideIcon name="Rabbit" size={20} color={isExplored ? COLORS.rabbitHole : COLORS.textMuted} />
+                  <span style={{ flex: 1, fontWeight: '500' }}>{rabbitHole.title}</span>
+                  {isExplored && <LucideIcon name="Check" size={18} color={COLORS.rabbitHole} />}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Footer */}
+          <div style={{
+            padding: '16px 24px',
+            borderTop: `1px solid ${COLORS.border}`,
+            display: 'flex',
+            justifyContent: 'flex-end',
+          }}>
+            <button
+              onClick={onClose}
+              style={{
+                padding: '10px 24px',
+                border: 'none',
+                borderRadius: '8px',
+                background: COLORS.rabbitHole,
+                color: 'white',
+                fontSize: '15px',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
 
     // --- Glossary Modal ---
     const GlossaryModal = ({ onClose }) => (
@@ -2176,6 +2288,7 @@ Continuous compounding shows up in options pricing (Black-Scholes) and theoretic
       // UI state
       const [soundEnabled, setSoundEnabled] = useState(true);
       const [showGlossary, setShowGlossary] = useState(false);
+      const [showRabbitHoleList, setShowRabbitHoleList] = useState(false);
       const [showRestartConfirm, setShowRestartConfirm] = useState(false);
       const [activeRabbitHole, setActiveRabbitHole] = useState(null);
       const [exploredRabbitHoles, setExploredRabbitHoles] = useState([]);
@@ -2226,6 +2339,14 @@ Continuous compounding shows up in options pricing (Black-Scholes) and theoretic
         setActiveRabbitHole(RABBIT_HOLES[rabbitHoleId]);
         if (!exploredRabbitHoles.includes(rabbitHoleId)) {
           setExploredRabbitHoles(prev => [...prev, rabbitHoleId]);
+        }
+      }, [exploredRabbitHoles]);
+
+      const handleRabbitHoleFromList = useCallback((rabbitHole) => {
+        setShowRabbitHoleList(false);
+        setActiveRabbitHole(rabbitHole);
+        if (!exploredRabbitHoles.includes(rabbitHole.id)) {
+          setExploredRabbitHoles(prev => [...prev, rabbitHole.id]);
         }
       }, [exploredRabbitHoles]);
 
@@ -2331,6 +2452,7 @@ Continuous compounding shows up in options pricing (Black-Scholes) and theoretic
             exploredRabbitHoles={exploredRabbitHoles}
             totalRabbitHoles={totalRabbitHoles}
             onGlossaryClick={() => setShowGlossary(true)}
+            onRabbitHoleListClick={() => setShowRabbitHoleList(true)}
             onRestartClick={() => setShowRestartConfirm(true)}
             onHeaderClick={handleHeaderClick}
             soundEnabled={soundEnabled}
@@ -2388,6 +2510,14 @@ Continuous compounding shows up in options pricing (Black-Scholes) and theoretic
 
           {/* Modals */}
           {showGlossary && <GlossaryModal onClose={() => setShowGlossary(false)} />}
+
+          {showRabbitHoleList && (
+            <RabbitHoleListModal
+              exploredRabbitHoles={exploredRabbitHoles}
+              onSelectRabbitHole={handleRabbitHoleFromList}
+              onClose={() => setShowRabbitHoleList(false)}
+            />
+          )}
 
           {showRestartConfirm && (
             <RestartConfirmModal

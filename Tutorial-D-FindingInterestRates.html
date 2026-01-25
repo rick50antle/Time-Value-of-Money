@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tutorial D: Finding Interest Rates | Time Value of Money</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .hide-mobile { }
+        @media (max-width: 600px) { .hide-mobile { display: none; } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+/**
+ * Tutorial D: Finding Interest Rates from Market Data
+ * ACCT 2700 - Foundations of Accounting & Valuation
+ * Yale School of Management
+ *
+ * The "flip" - given a price and promised cash flows, find the interest rate
+ */
+
+const { useState, useCallback, useEffect, useRef } = React;
+
+// LucideIcon helper component
+const LucideIcon = ({ name, size = 24, color = 'currentColor', style = {} }) => {
+    const iconRef = useRef(null);
+    useEffect(() => {
+        if (iconRef.current && lucide[name]) {
+            iconRef.current.innerHTML = '';
+            const svg = lucide.createElement(lucide[name]);
+            svg.setAttribute('width', size);
+            svg.setAttribute('height', size);
+            svg.setAttribute('stroke', color);
+            iconRef.current.appendChild(svg);
+        }
+    }, [name, size, color]);
+    return <span ref={iconRef} style={{ display: 'inline-flex', alignItems: 'center', ...style }} />;
+};
+
+// COLORS
+const COLORS = {
+  primary: '#00356b',
+  primaryLight: '#1a4a7a',
+  primaryDark: '#002548',
+  background: '#f8fafc',
+  surface: '#ffffff',
+  surfaceAlt: '#f1f5f9',
+  border: '#e2e8f0',
+  borderDark: '#cbd5e1',
+  textPrimary: '#1e293b',
+  textSecondary: '#64748b',
+  textMuted: '#94a3b8',
+  accent: '#0369a1',
+  accentLight: '#e0f2fe',
+  gold: '#ca8a04',
+  goldLight: '#fef9c3',
+  goldBorder: '#eab308',
+  success: '#16a34a',
+  successBg: '#f0fdf4',
+  successBorder: '#86efac',
+  warning: '#d97706',
+  warningBg: '#fffbeb',
+  warningBorder: '#fcd34d',
+  error: '#dc2626',
+  errorBg: '#fef2f2',
+  rabbitHole: '#7c3aed',
+  rabbitHoleLight: '#ede9fe',
+  rabbitHoleBorder: '#a78bfa',
+  deepDive: '#0d9488',
+  deepDiveLight: '#f0fdfa',
+  deepDiveBorder: '#5eead4',
+  celebrationBg: 'linear-gradient(135deg, #fef9c3 0%, #fef3c7 50%, #fde68a 100%)',
+};
+
+// CONSTANTS
+const CONSTANTS = {
+  // Example bond for yield calculation
+  FACE_VALUE: 1000,
+  COUPON_RATE: 0.06,
+  COUPON_PAYMENT: 60,
+  PERIODS: 5,
+  MARKET_PRICE: 1100,
+  YIELD_TO_MATURITY: 0.0377, // approximately 3.77%
+
+  // Consol example
+  CONSOL_PAYMENT: 100,
+  CONSOL_PRICE_1000: 1000,
+  CONSOL_PRICE_1250: 1250,
+  CONSOL_RATE_10: 0.10,
+  CONSOL_RATE_8: 0.08,
+
+  TOLERANCE: 0.05,
+  ESTIMATED_CORE_TIME: 12,
+  ESTIMATED_FULL_TIME: 18,
+};
+
+// TUTORIAL STRUCTURE
+const PARTS = [
+  { id: 'theFlip', title: 'The Flip', steps: 3 },
+  { id: 'consolCase', title: 'The Simplest Case: Consols', steps: 3 },
+  { id: 'couponBonds', title: 'Coupon Bonds: The Yield', steps: 5 },
+  { id: 'whyNotStocks', title: 'Why This Doesn\'t Work for Stocks', steps: 3 },
+  { id: 'summary', title: 'Rates Are Prices', steps: 2 },
+  { id: 'complete', title: 'Complete', steps: 1 },
+];
+
+// RABBIT HOLES DATA
+const RABBIT_HOLES = {
+  yieldCurve: {
+    id: 'yieldCurve',
+    title: 'The Yield Curve',
+    partId: 'couponBonds',
+    content: `When you impute yields from bonds of different maturities, you get different rates. Plotting these gives you the "yield curve."
+
+A normal yield curve slopes upward: longer-term bonds have higher yields to compensate for the extra risk of waiting longer.
+
+But sometimes the yield curve inverts: short-term rates exceed long-term rates. This has historically been a strong predictor of recessions — it suggests investors expect future rates to fall, often because they expect the economy to slow.
+
+The Federal Reserve watches the yield curve closely. When it inverts, headlines follow. The yield curve inverted before every U.S. recession since 1955.
+
+Understanding that yields are imputed from prices — not announced from above — helps explain why the yield curve contains information. It reflects the collective expectations of millions of investors making actual trading decisions.`
+  },
+  goalSeek: {
+    id: 'goalSeek',
+    title: 'Goal Seek: The Computer\'s Method',
+    partId: 'couponBonds',
+    content: `When we solve for yield to maturity, we're finding the r that makes this equation true:
+
+Price = C/(1+r) + C/(1+r)² + ... + (C+Face)/(1+r)ⁿ
+
+There's no algebraic formula to solve this directly (unlike the simple perpetuity case). Instead, computers use numerical methods.
+
+Excel's Goal Seek and RATE functions do this automatically. They try different values of r until the calculated price matches the observed price.
+
+The process is like a number-guessing game:
+1. Try r = 5%. Calculate price. Too high?
+2. Try r = 6%. Calculate price. Too low?
+3. Try r = 5.5%. Getting closer...
+4. Keep narrowing until you're within a tiny tolerance.
+
+This is called "iteration" or "numerical solving." The computer can do thousands of guesses per second, converging on the answer almost instantly.
+
+Financial calculators have this built in — that's what the YTM or IRR buttons actually do.`
+  },
+  equityRiskPremium: {
+    id: 'equityRiskPremium',
+    title: 'The Equity Risk Premium Puzzle',
+    partId: 'whyNotStocks',
+    content: `If we can't directly impute a discount rate for stocks the way we can for bonds, how do we know what return to expect from the stock market?
+
+We look at historical data. Over the last century, U.S. stocks returned about 7% more per year than Treasury bonds. This difference is called the "equity risk premium."
+
+But here's the puzzle: 7% seems like a lot! To justify that premium, investors would have to be extremely risk-averse — more than economists thought plausible.
+
+This is one of the great puzzles in finance, first identified by Mehra and Prescott in 1985. Possible explanations include:
+• Historical returns may have been unusually lucky
+• Investors fear rare catastrophic events more than models capture
+• The premium has shrunk in recent decades as more people invest
+• Behavioral factors make people irrationally fearful of stocks
+
+The point: unlike bonds, we can't just look at prices and extract a clean discount rate. We're stuck making assumptions and looking at messy historical data.`
+  },
+  irvingFisherYield: {
+    id: 'irvingFisherYield',
+    title: 'Irving Fisher\'s Interest Rate Theory',
+    partId: 'theFlip',
+    content: `Irving Fisher, the Yale economist, wrote the foundational text on interest rates in 1930. His key insight: the interest rate isn't just a number set by banks — it's a price.
+
+Specifically, it's the price of moving consumption through time. If you want to consume today instead of waiting until next year, you pay for that privilege. The interest rate is what you pay.
+
+This insight transforms how we think about interest rates:
+• They're discovered in markets, not decreed from above
+• They change as supply and demand for present consumption change
+• They can be observed by watching what people actually pay in trades
+
+Fisher saw that when you watch bonds trade, you're watching the market discover the price of time. When a bond's price falls, the market is saying the price of time has risen — the interest rate has increased.
+
+Ironically, Fisher himself was terrible at predicting markets. But his theory of what interest rates mean remains foundational.`
+  },
+};
+
+const TOTAL_RABBIT_HOLES = Object.keys(RABBIT_HOLES).length;
+
+// GLOSSARY DATA
+const GLOSSARY = {
+  imputation: { term: 'Imputation', definition: 'Inferring an unknown value (like an interest rate) from observable market data (prices and promised cash flows).' },
+  yieldToMaturity: { term: 'Yield to Maturity (YTM)', definition: 'The single interest rate that, when used to discount all of a bond\'s future cash flows, produces the bond\'s current market price. Also called the bond\'s "yield."' },
+  perpetuity: { term: 'Perpetuity', definition: 'A stream of equal cash flows that continues forever. Valued at C/r where C is the payment and r is the interest rate.' },
+  consol: { term: 'Consol', definition: 'A perpetual bond that pays fixed interest forever with no maturity date. Named after British "consolidated annuities."' },
+  iteration: { term: 'Iteration (Numerical Solving)', definition: 'A computer technique that tries successive guesses to find a value that satisfies an equation. Used when no direct algebraic solution exists.' },
+  discountRate: { term: 'Discount Rate', definition: 'The interest rate used to calculate present values. Can be imputed from market prices or assumed based on opportunity cost.' },
+  promisedCashFlows: { term: 'Promised Cash Flows', definition: 'Cash flows that are contractually guaranteed, like bond coupons and face value. Distinguished from expected cash flows (like dividends) which may vary.' },
+};
+
+// SOUND SYSTEM
+const playSound = (type) => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    switch (type) {
+      case 'success':
+        oscillator.frequency.setValueAtTime(523.25, ctx.currentTime);
+        oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+        oscillator.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2);
+        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.4);
+        break;
+      case 'softNope':
+        oscillator.frequency.setValueAtTime(783.99, ctx.currentTime);
+        oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15);
+        gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.3);
+        break;
+      case 'click':
+        oscillator.frequency.setValueAtTime(600, ctx.currentTime);
+        gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.08);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.08);
+        break;
+      case 'rabbitHole':
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, ctx.currentTime);
+        oscillator.frequency.setValueAtTime(932.33, ctx.currentTime + 0.05);
+        oscillator.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.25);
+        break;
+      case 'insight':
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(523.25, ctx.currentTime);
+        oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.15);
+        oscillator.frequency.setValueAtTime(783.99, ctx.currentTime + 0.3);
+        oscillator.frequency.setValueAtTime(1046.50, ctx.currentTime + 0.45);
+        gainNode.gain.setValueAtTime(0.25, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.6);
+        break;
+      case 'celebration':
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(523.25, ctx.currentTime);
+        oscillator.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1);
+        oscillator.frequency.setValueAtTime(783.99, ctx.currentTime + 0.2);
+        oscillator.frequency.setValueAtTime(1046.50, ctx.currentTime + 0.3);
+        oscillator.frequency.setValueAtTime(1318.51, ctx.currentTime + 0.4);
+        gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.8);
+        oscillator.start(ctx.currentTime);
+        oscillator.stop(ctx.currentTime + 0.8);
+        break;
+      default:
+        break;
+    }
+    setTimeout(() => ctx.close(), 1000);
+  } catch (e) {}
+};
+
+// UTILITY FUNCTIONS
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
+
+const formatPercent = (value, decimals = 2) => {
+  return (value * 100).toFixed(decimals) + '%';
+};
+
+const parseUserInput = (input) => {
+  const cleaned = String(input).replace(/[$,%\s]/g, '');
+  return parseFloat(cleaned);
+};
+
+const checkAnswer = (userValue, correctValue, tolerance = CONSTANTS.TOLERANCE) => {
+  return Math.abs(userValue - correctValue) <= tolerance;
+};
+
+const calculateProgress = (currentPartIndex, currentStep) => {
+  const totalSteps = PARTS.reduce((sum, p) => sum + p.steps, 0);
+  if (currentPartIndex === PARTS.length - 1) return 100;
+  const completedSteps = PARTS.slice(0, currentPartIndex).reduce((sum, p) => sum + p.steps, 0) + currentStep;
+  return Math.round((completedSteps / totalSteps) * 100);
+};
+
+// Header Component
+const Header = ({ currentPartIndex, currentStep, exploredRabbitHoles, totalRabbitHoles, onGlossaryClick, onRabbitHoleListClick, onRestartClick, onHeaderClick, soundEnabled, onSoundToggle }) => {
+  const progress = calculateProgress(currentPartIndex, currentStep);
+  const currentPart = PARTS[currentPartIndex];
+  return (
+    <header style={{ background: COLORS.primary, color: 'white', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 100 }}>
+      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+          <h1 onClick={onHeaderClick} style={{ fontSize: '18px', fontWeight: '600', margin: 0, cursor: 'default', userSelect: 'none' }}>Finding Interest Rates</h1>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button onClick={onSoundToggle} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center' }} title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}>
+              {soundEnabled ? <LucideIcon name="Volume2" size={18} /> : <LucideIcon name="VolumeX" size={18} />}
+            </button>
+            <button onClick={onRabbitHoleListClick} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: COLORS.rabbitHoleLight, color: COLORS.rabbitHole, padding: '4px 10px', borderRadius: '12px', fontSize: '13px', fontWeight: '500', border: 'none', cursor: 'pointer', transition: 'all 0.2s ease' }} title="View all rabbit holes">
+              <LucideIcon name="Rabbit" size={14} />
+              <span>{exploredRabbitHoles.length}/{totalRabbitHoles}</span>
+            </button>
+            <button onClick={onGlossaryClick} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px' }}>
+              <LucideIcon name="BookOpen" size={16} />
+              <span className="hide-mobile">Glossary</span>
+            </button>
+            <button onClick={onRestartClick} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: 'white', display: 'flex', alignItems: 'center' }} title="Restart tutorial">
+              <LucideIcon name="RotateCcw" size={18} />
+            </button>
+          </div>
+        </div>
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px', opacity: 0.9 }}>
+            <span>Part {currentPartIndex + 1}: {currentPart.title}</span>
+            <span>{progress}% complete</span>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
+            <div style={{ background: COLORS.goldBorder, height: '100%', width: `${progress}%`, transition: 'width 0.3s ease', borderRadius: '4px' }} />
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+};
+
+// NavButtons Component
+const NavButtons = ({ onBack, onContinue, canGoBack, canContinue, continueLabel = 'Continue', soundEnabled }) => {
+  const handleContinue = () => { if (soundEnabled) playSound('click'); onContinue(); };
+  const handleBack = () => { if (soundEnabled) playSound('click'); onBack(); };
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '32px', paddingTop: '24px', borderTop: `1px solid ${COLORS.border}` }}>
+      <button onClick={handleBack} disabled={!canGoBack} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 20px', border: `1px solid ${COLORS.border}`, borderRadius: '8px', background: 'white', color: canGoBack ? COLORS.textPrimary : COLORS.textMuted, cursor: canGoBack ? 'pointer' : 'not-allowed', fontSize: '15px', opacity: canGoBack ? 1 : 0.5 }}>
+        <LucideIcon name="ChevronLeft" size={18} />
+        Back
+      </button>
+      <button onClick={handleContinue} disabled={!canContinue} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 24px', border: 'none', borderRadius: '8px', background: canContinue ? COLORS.primary : COLORS.textMuted, color: 'white', cursor: canContinue ? 'pointer' : 'not-allowed', fontSize: '15px', fontWeight: '500' }}>
+        {continueLabel}
+        <LucideIcon name="ChevronRight" size={18} />
+      </button>
+    </div>
+  );
+};
+
+// ChoiceButton Component
+const ChoiceButton = ({ label, selected, correct, submitted, onClick, disabled }) => {
+  let background = 'white';
+  let borderColor = COLORS.border;
+  let textColor = COLORS.textPrimary;
+  if (selected && !submitted) { background = COLORS.accentLight; borderColor = COLORS.accent; }
+  else if (submitted) {
+    if (correct) { background = COLORS.successBg; borderColor = COLORS.successBorder; }
+    else if (selected && !correct) { background = COLORS.warningBg; borderColor = COLORS.warningBorder; }
+    else { textColor = COLORS.textMuted; }
+  }
+  return (
+    <button onClick={onClick} disabled={disabled || submitted} style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '14px 16px', border: `2px solid ${borderColor}`, borderRadius: '10px', background, color: textColor, cursor: disabled || submitted ? 'default' : 'pointer', fontSize: '15px', textAlign: 'left', transition: 'all 0.2s ease', marginBottom: '8px' }}>
+      {submitted && correct && <LucideIcon name="Check" size={20} color={COLORS.success} />}
+      {submitted && selected && !correct && <LucideIcon name="X" size={20} color={COLORS.warning} />}
+      {!submitted && <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `2px solid ${selected ? COLORS.accent : COLORS.border}`, background: selected ? COLORS.accent : 'white', flexShrink: 0 }} />}
+      <span>{label}</span>
+    </button>
+  );
+};
+
+// CalculationBox Component
+const CalculationBox = ({ prompt, correctAnswer, hint1, hint2, onCorrect, soundEnabled, tolerance = CONSTANTS.TOLERANCE, disabled = false, prefix = '$', isPercent = false }) => {
+  const [input, setInput] = useState('');
+  const [attempts, setAttempts] = useState(0);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [showHint, setShowHint] = useState(null);
+
+  const handleCheck = () => {
+    if (disabled || isCorrect) return;
+    const userValue = parseUserInput(input);
+    if (isNaN(userValue)) { setShowHint('Please enter a valid number'); return; }
+    const compareValue = isPercent ? userValue / 100 : userValue;
+    const tol = isPercent ? 0.002 : tolerance;
+    if (checkAnswer(compareValue, correctAnswer, tol)) {
+      setIsCorrect(true);
+      if (soundEnabled) playSound('success');
+      onCorrect?.();
+    } else {
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      if (soundEnabled) playSound('softNope');
+      const displayAnswer = isPercent ? formatPercent(correctAnswer) : formatCurrency(correctAnswer);
+      if (newAttempts >= 3) { setShowHint(`The answer is ${displayAnswer}`); setIsCorrect(true); onCorrect?.(); }
+      else if (newAttempts === 2 && hint2) { setShowHint(hint2); }
+      else if (hint1) { setShowHint(hint1); }
+    }
+  };
+
+  return (
+    <div style={{ background: COLORS.surfaceAlt, border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '20px', marginTop: '16px', opacity: disabled ? 0.6 : 1 }}>
+      <p style={{ margin: '0 0 16px 0', fontSize: '15px', color: COLORS.textPrimary, fontFamily: 'monospace' }}>{prompt}</p>
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          {prefix && <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: COLORS.textMuted }}>{prefix}</span>}
+          <input type="text" value={input} onChange={(e) => setInput(e.target.value)} disabled={isCorrect || disabled} placeholder={isPercent ? '0.00' : '0.00'} style={{ width: '100%', padding: prefix ? '12px 12px 12px 28px' : '12px', border: `2px solid ${isCorrect ? COLORS.successBorder : COLORS.border}`, borderRadius: '8px', fontSize: '16px', fontFamily: 'monospace', background: isCorrect ? COLORS.successBg : 'white', boxSizing: 'border-box' }} onKeyDown={(e) => e.key === 'Enter' && !isCorrect && handleCheck()} />
+        </div>
+        <button onClick={handleCheck} disabled={isCorrect || !input || disabled} style={{ padding: '12px 20px', border: 'none', borderRadius: '8px', background: isCorrect ? COLORS.success : COLORS.primary, color: 'white', fontSize: '15px', fontWeight: '500', cursor: isCorrect || !input || disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {isCorrect ? <LucideIcon name="Check" size={18} /> : 'Check'}
+        </button>
+      </div>
+      {showHint && (
+        <p style={{ marginTop: '12px', padding: '10px 12px', background: isCorrect && attempts >= 3 ? COLORS.warningBg : COLORS.accentLight, borderRadius: '6px', fontSize: '14px', color: isCorrect && attempts >= 3 ? COLORS.warning : COLORS.accent }}>{showHint}</p>
+      )}
+    </div>
+  );
+};
+
+// InsightBox Component
+const InsightBox = ({ children, icon, celebration = false }) => (
+  <div style={{ background: celebration ? COLORS.celebrationBg : COLORS.goldLight, border: `2px solid ${COLORS.goldBorder}`, borderRadius: '12px', padding: celebration ? '24px' : '20px', marginTop: '20px', marginBottom: '20px', boxShadow: celebration ? '0 4px 12px rgba(202, 138, 4, 0.2)' : 'none' }}>
+    <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+      {celebration ? <LucideIcon name="Sparkles" size={28} color={COLORS.gold} style={{ flexShrink: 0, marginTop: '2px' }} /> : (icon || <LucideIcon name="Lightbulb" size={24} color={COLORS.gold} style={{ flexShrink: 0, marginTop: '2px' }} />)}
+      <div style={{ fontSize: celebration ? '17px' : '16px', lineHeight: '1.6', color: COLORS.textPrimary }}>{children}</div>
+    </div>
+  </div>
+);
+
+// DeepDiveLink Component
+const DeepDiveLink = ({ title, href }) => (
+  <a href={href} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', border: `1px solid ${COLORS.deepDiveBorder}`, borderRadius: '8px', background: COLORS.deepDiveLight, color: COLORS.deepDive, textDecoration: 'none', fontSize: '14px', marginTop: '16px', transition: 'all 0.2s ease' }}>
+    <LucideIcon name="Layers" size={18} style={{ flexShrink: 0 }} />
+    <span>For more on this, see the Deep Dive: <strong>{title}</strong></span>
+  </a>
+);
+
+// FormulaFlipVisual Component
+const FormulaFlipVisual = ({ showFlip = false }) => (
+  <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '24px', marginTop: '16px', marginBottom: '16px' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '40px', flexWrap: 'wrap' }}>
+      {/* Original Direction */}
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '12px', color: COLORS.textSecondary, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}>What We've Been Doing</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center' }}>
+          <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', border: `2px solid ${COLORS.border}` }}>
+            <div style={{ fontSize: '11px', color: COLORS.textMuted }}>Given</div>
+            <div style={{ fontSize: '16px', fontWeight: '600', color: COLORS.textPrimary }}>Cash Flows + Rate</div>
+          </div>
+          <LucideIcon name="ArrowRight" size={24} color={COLORS.textMuted} />
+          <div style={{ background: COLORS.accentLight, padding: '12px 16px', borderRadius: '8px', border: `2px solid ${COLORS.accent}` }}>
+            <div style={{ fontSize: '11px', color: COLORS.accent }}>Find</div>
+            <div style={{ fontSize: '16px', fontWeight: '600', color: COLORS.accent }}>Price</div>
+          </div>
+        </div>
+      </div>
+
+      {showFlip && (
+        <>
+          <div style={{ fontSize: '32px', color: COLORS.gold }}>
+            <LucideIcon name="RefreshCw" size={32} />
+          </div>
+
+          {/* Flipped Direction */}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '12px', color: COLORS.gold, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }}>The Flip</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center' }}>
+              <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', border: `2px solid ${COLORS.border}` }}>
+                <div style={{ fontSize: '11px', color: COLORS.textMuted }}>Given</div>
+                <div style={{ fontSize: '16px', fontWeight: '600', color: COLORS.textPrimary }}>Cash Flows + Price</div>
+              </div>
+              <LucideIcon name="ArrowRight" size={24} color={COLORS.textMuted} />
+              <div style={{ background: COLORS.goldLight, padding: '12px 16px', borderRadius: '8px', border: `2px solid ${COLORS.goldBorder}` }}>
+                <div style={{ fontSize: '11px', color: COLORS.gold }}>Find</div>
+                <div style={{ fontSize: '16px', fontWeight: '600', color: COLORS.gold }}>Rate</div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  </div>
+);
+
+// YieldIterationVisual Component
+const YieldIterationVisual = ({ showSteps = 1 }) => {
+  const iterations = [
+    { rate: 0.06, price: 1000.00, direction: 'too low' },
+    { rate: 0.04, price: 1089.04, direction: 'closer' },
+    { rate: 0.038, price: 1098.19, direction: 'very close' },
+    { rate: 0.0377, price: 1100.00, direction: 'match!' },
+  ];
+
+  return (
+    <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px' }}>
+      <div style={{ fontSize: '13px', color: COLORS.textSecondary, marginBottom: '12px' }}>
+        Finding the yield for a bond selling at $1,100...
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {iterations.slice(0, showSteps).map((iter, index) => {
+          const isLast = index === showSteps - 1 && iter.direction === 'match!';
+          return (
+            <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: isLast ? COLORS.successBg : 'white', borderRadius: '8px', border: `1px solid ${isLast ? COLORS.successBorder : COLORS.border}` }}>
+              <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: isLast ? COLORS.success : COLORS.primary, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '600' }}>
+                {index + 1}
+              </div>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontFamily: 'monospace', fontSize: '14px' }}>Try r = {formatPercent(iter.rate)}</span>
+                <span style={{ color: COLORS.textMuted, margin: '0 8px' }}>→</span>
+                <span style={{ fontFamily: 'monospace', fontSize: '14px' }}>Price = {formatCurrency(iter.price)}</span>
+              </div>
+              <div style={{ fontSize: '12px', padding: '4px 8px', borderRadius: '4px', background: isLast ? COLORS.successBg : COLORS.warningBg, color: isLast ? COLORS.success : COLORS.warning, fontWeight: '500' }}>
+                {iter.direction}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {showSteps < 4 && (
+        <div style={{ textAlign: 'center', marginTop: '12px', color: COLORS.textMuted, fontSize: '14px' }}>
+          ...keep iterating...
+        </div>
+      )}
+    </div>
+  );
+};
+
+// StockVsBondTable Component
+const StockVsBondTable = () => (
+  <div style={{ background: 'white', border: `1px solid ${COLORS.border}`, borderRadius: '12px', overflow: 'hidden', marginTop: '16px' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+      <thead>
+        <tr style={{ background: COLORS.surfaceAlt }}>
+          <th style={{ padding: '14px 16px', textAlign: 'left', borderBottom: `2px solid ${COLORS.border}`, fontWeight: '600' }}></th>
+          <th style={{ padding: '14px 16px', textAlign: 'center', borderBottom: `2px solid ${COLORS.border}`, fontWeight: '600', color: COLORS.primary }}>Bonds</th>
+          <th style={{ padding: '14px 16px', textAlign: 'center', borderBottom: `2px solid ${COLORS.border}`, fontWeight: '600', color: COLORS.error }}>Stocks</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style={{ padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, color: COLORS.textSecondary }}>Cash flows</td>
+          <td style={{ padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'center', color: COLORS.primary, fontWeight: '500' }}>Promised (contractual)</td>
+          <td style={{ padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'center', color: COLORS.error, fontWeight: '500' }}>Expected (uncertain)</td>
+        </tr>
+        <tr>
+          <td style={{ padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, color: COLORS.textSecondary }}>Payments</td>
+          <td style={{ padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'center' }}>Fixed coupons + face value</td>
+          <td style={{ padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'center' }}>Dividends may vary or stop</td>
+        </tr>
+        <tr>
+          <td style={{ padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, color: COLORS.textSecondary }}>Maturity</td>
+          <td style={{ padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'center' }}>Specified date</td>
+          <td style={{ padding: '12px 16px', borderBottom: `1px solid ${COLORS.border}`, textAlign: 'center' }}>Indefinite</td>
+        </tr>
+        <tr style={{ background: COLORS.goldLight }}>
+          <td style={{ padding: '12px 16px', color: COLORS.gold, fontWeight: '600' }}>Can impute rate?</td>
+          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+            <LucideIcon name="Check" size={20} color={COLORS.success} />
+          </td>
+          <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+            <LucideIcon name="X" size={20} color={COLORS.error} />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+);
+
+// RabbitHoleButton Component
+const RabbitHoleButton = ({ rabbitHole, explored, onClick, soundEnabled }) => {
+  const handleClick = () => { if (soundEnabled) playSound('rabbitHole'); onClick(); };
+  return (
+    <button onClick={handleClick} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '14px 16px', border: `2px dashed ${COLORS.rabbitHoleBorder}`, borderRadius: '10px', background: explored ? COLORS.rabbitHoleLight : 'white', color: COLORS.rabbitHole, cursor: 'pointer', fontSize: '14px', textAlign: 'left', marginTop: '16px', transition: 'all 0.2s ease' }}>
+      <LucideIcon name="Rabbit" size={20} style={{ flexShrink: 0 }} />
+      <span style={{ flex: 1 }}>{rabbitHole.title}</span>
+      {explored && <LucideIcon name="Check" size={18} />}
+    </button>
+  );
+};
+
+// Modal Component
+const Modal = ({ children, onClose, title, headerBg = COLORS.primary, headerIcon }) => (
+  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 1000 }} onClick={onClose}>
+    <div style={{ background: 'white', borderRadius: '16px', maxWidth: '600px', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '100%' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ background: headerBg, color: 'white', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {headerIcon}
+        <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600' }}>{title}</h2>
+      </div>
+      <div style={{ padding: '24px' }}>{children}</div>
+      <div style={{ padding: '16px 24px', borderTop: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={onClose} style={{ padding: '10px 24px', border: 'none', borderRadius: '8px', background: headerBg, color: 'white', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>
+          {title === 'Glossary' ? 'Close' : 'Back to Tutorial'}
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+// RabbitHoleListModal Component
+const RabbitHoleListModal = ({ exploredRabbitHoles, onSelectRabbitHole, onClose }) => (
+  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 1000 }}>
+    <div style={{ background: 'white', borderRadius: '16px', maxWidth: '500px', width: '100%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+      <div style={{ background: COLORS.rabbitHole, color: 'white', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <LucideIcon name="Rabbit" size={24} />
+        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Rabbit Holes</h2>
+        <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.2)', padding: '4px 10px', borderRadius: '12px', fontSize: '13px' }}>
+          {exploredRabbitHoles.length}/{Object.keys(RABBIT_HOLES).length} explored
+        </span>
+      </div>
+      <div style={{ padding: '16px' }}>
+        {Object.values(RABBIT_HOLES).map((rabbitHole) => {
+          const isExplored = exploredRabbitHoles.includes(rabbitHole.id);
+          return (
+            <button key={rabbitHole.id} onClick={() => onSelectRabbitHole(rabbitHole)} style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '14px 16px', marginBottom: '8px', border: `2px solid ${isExplored ? COLORS.rabbitHoleBorder : COLORS.border}`, borderRadius: '10px', background: isExplored ? COLORS.rabbitHoleLight : 'white', color: COLORS.textPrimary, cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s ease' }}>
+              <LucideIcon name="Rabbit" size={20} color={isExplored ? COLORS.rabbitHole : COLORS.textMuted} />
+              <span style={{ flex: 1, fontWeight: '500' }}>{rabbitHole.title}</span>
+              {isExplored && <LucideIcon name="Check" size={18} color={COLORS.rabbitHole} />}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ padding: '16px 24px', borderTop: `1px solid ${COLORS.border}`, display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={onClose} style={{ padding: '10px 24px', border: 'none', borderRadius: '8px', background: COLORS.rabbitHole, color: 'white', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>Close</button>
+      </div>
+    </div>
+  </div>
+);
+
+// GlossaryModal Component
+const GlossaryModal = ({ onClose }) => (
+  <Modal title="Glossary" onClose={onClose} headerIcon={<LucideIcon name="BookOpen" size={24} />}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {Object.values(GLOSSARY).map((item, index) => (
+        <div key={index} style={{ padding: '16px', background: COLORS.surfaceAlt, borderRadius: '8px' }}>
+          <div style={{ fontWeight: '600', color: COLORS.textPrimary, marginBottom: '4px' }}>{item.term}</div>
+          <div style={{ fontSize: '14px', color: COLORS.textSecondary, lineHeight: '1.5' }}>{item.definition}</div>
+        </div>
+      ))}
+    </div>
+  </Modal>
+);
+
+// Main App Component
+const App = () => {
+  // State
+  const [currentPartIndex, setCurrentPartIndex] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showGlossary, setShowGlossary] = useState(false);
+  const [showRabbitHoleList, setShowRabbitHoleList] = useState(false);
+  const [activeRabbitHole, setActiveRabbitHole] = useState(null);
+  const [exploredRabbitHoles, setExploredRabbitHoles] = useState([]);
+
+  // Quiz and calculation states
+  const [quizAnswers, setQuizAnswers] = useState({});
+  const [quizSubmitted, setQuizSubmitted] = useState({});
+  const [calculationsComplete, setCalculationsComplete] = useState({});
+
+  // Dev mode
+  const [devMode, setDevMode] = useState(false);
+  const [headerClickCount, setHeaderClickCount] = useState(0);
+  const [lastClickTime, setLastClickTime] = useState(0);
+
+  const handleHeaderClick = useCallback(() => {
+    const now = Date.now();
+    if (now - lastClickTime < 500) {
+      const newCount = headerClickCount + 1;
+      setHeaderClickCount(newCount);
+      if (newCount >= 3) {
+        setDevMode(prev => !prev);
+        setHeaderClickCount(0);
+      }
+    } else {
+      setHeaderClickCount(1);
+    }
+    setLastClickTime(now);
+  }, [headerClickCount, lastClickTime]);
+
+  const handleRabbitHoleClick = useCallback((id) => {
+    const rabbitHole = RABBIT_HOLES[id];
+    if (rabbitHole) {
+      setActiveRabbitHole(rabbitHole);
+      if (!exploredRabbitHoles.includes(id)) {
+        setExploredRabbitHoles(prev => [...prev, id]);
+      }
+    }
+  }, [exploredRabbitHoles]);
+
+  const handleRabbitHoleFromList = useCallback((rabbitHole) => {
+    setShowRabbitHoleList(false);
+    setActiveRabbitHole(rabbitHole);
+    if (!exploredRabbitHoles.includes(rabbitHole.id)) {
+      setExploredRabbitHoles(prev => [...prev, rabbitHole.id]);
+    }
+  }, [exploredRabbitHoles]);
+
+  const handleQuizAnswer = useCallback((quizId, answer) => {
+    setQuizAnswers(prev => ({ ...prev, [quizId]: answer }));
+  }, []);
+
+  const handleQuizSubmit = useCallback((quizId, correctAnswer) => {
+    setQuizSubmitted(prev => ({ ...prev, [quizId]: true }));
+    const isCorrect = quizAnswers[quizId] === correctAnswer;
+    if (soundEnabled) playSound(isCorrect ? 'success' : 'softNope');
+  }, [quizAnswers, soundEnabled]);
+
+  const handleCalculationComplete = useCallback((calcId) => {
+    setCalculationsComplete(prev => ({ ...prev, [calcId]: true }));
+  }, []);
+
+  const canContinue = useCallback(() => {
+    const partId = PARTS[currentPartIndex].id;
+
+    // Part: consolCase - Step 2 requires calculation
+    if (partId === 'consolCase' && currentStep === 1) {
+      return calculationsComplete['consol_impute'];
+    }
+
+    // Part: couponBonds - Step 3 requires quiz
+    if (partId === 'couponBonds' && currentStep === 2) {
+      return quizSubmitted['yield_quiz'];
+    }
+
+    // Part: whyNotStocks - Step 1 requires quiz
+    if (partId === 'whyNotStocks' && currentStep === 0) {
+      return quizSubmitted['stock_quiz'];
+    }
+
+    return true;
+  }, [currentPartIndex, currentStep, calculationsComplete, quizSubmitted]);
+
+  const handleContinue = useCallback(() => {
+    const currentPart = PARTS[currentPartIndex];
+    if (currentStep < currentPart.steps - 1) {
+      setCurrentStep(prev => prev + 1);
+    } else if (currentPartIndex < PARTS.length - 1) {
+      setCurrentPartIndex(prev => prev + 1);
+      setCurrentStep(0);
+    }
+  }, [currentPartIndex, currentStep]);
+
+  const handleBack = useCallback(() => {
+    if (currentStep > 0) {
+      setCurrentStep(prev => prev - 1);
+    } else if (currentPartIndex > 0) {
+      const prevPart = PARTS[currentPartIndex - 1];
+      setCurrentPartIndex(prev => prev - 1);
+      setCurrentStep(prevPart.steps - 1);
+    }
+  }, [currentPartIndex, currentStep]);
+
+  const handleRestart = useCallback(() => {
+    if (confirm('Are you sure you want to restart? Your progress will be lost.')) {
+      setCurrentPartIndex(0);
+      setCurrentStep(0);
+      setQuizAnswers({});
+      setQuizSubmitted({});
+      setCalculationsComplete({});
+      setExploredRabbitHoles([]);
+    }
+  }, []);
+
+  // Render content based on current part and step
+  const renderContent = () => {
+    const partId = PARTS[currentPartIndex].id;
+
+    // PART: THE FLIP
+    if (partId === 'theFlip') {
+      if (currentStep === 0) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Where Do Interest Rates Come From?</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              So far, we've taken the interest rate as given. We said "assume 6%" and calculated prices. But where does the 6% come from?
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Interest rates aren't handed down from on high. They emerge from market transactions — from people actually buying and selling financial instruments.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary }}>
+              This tutorial is about flipping the calculation around: instead of using the rate to find the price, we'll use the price to find the rate.
+            </p>
+            <RabbitHoleButton
+              rabbitHole={RABBIT_HOLES.irvingFisherYield}
+              explored={exploredRabbitHoles.includes('irvingFisherYield')}
+              onClick={() => handleRabbitHoleClick('irvingFisherYield')}
+              soundEnabled={soundEnabled}
+            />
+          </div>
+        );
+      }
+      if (currentStep === 1) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>The Flip</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Here's the conceptual shift:
+            </p>
+            <FormulaFlipVisual showFlip={true} />
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginTop: '16px' }}>
+              When we observe a bond trading at some price, and we know its promised cash flows, we can work backwards to find the interest rate the market is using.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginTop: '16px' }}>
+              This process is called <strong>imputation</strong> — inferring something hidden (the rate) from something observable (the price).
+            </p>
+          </div>
+        );
+      }
+      if (currentStep === 2) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Why This Matters</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Imputing interest rates from prices is how we:
+            </p>
+            <ul style={{ fontSize: '16px', lineHeight: '1.8', color: COLORS.textSecondary, marginLeft: '24px', marginBottom: '16px' }}>
+              <li style={{ marginBottom: '8px' }}><strong>Discover market rates</strong> — what return investors actually require</li>
+              <li style={{ marginBottom: '8px' }}><strong>Compare investments</strong> — is this bond a better deal than that one?</li>
+              <li style={{ marginBottom: '8px' }}><strong>Track the economy</strong> — rising rates signal inflation expectations</li>
+              <li style={{ marginBottom: '8px' }}><strong>Make decisions</strong> — should we issue bonds now or wait?</li>
+            </ul>
+            <InsightBox>
+              The rate isn't an input — it's an output. Markets discover rates through trading, and we observe them by watching prices.
+            </InsightBox>
+          </div>
+        );
+      }
+    }
+
+    // PART: CONSOL CASE
+    if (partId === 'consolCase') {
+      if (currentStep === 0) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>The Simplest Case: Consols</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Let's start with the easiest case — a perpetual bond that pays forever with no maturity. These are called <strong>consols</strong>.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              For a consol, we know that Value = C/r. Which means:
+            </p>
+            <div style={{ background: 'white', border: `2px solid ${COLORS.goldBorder}`, borderRadius: '12px', padding: '24px', marginTop: '16px', marginBottom: '16px', textAlign: 'center' }}>
+              <div style={{ fontSize: '28px', fontFamily: 'Georgia, serif', color: COLORS.textPrimary }}>
+                <span style={{ fontStyle: 'italic' }}>r</span> = <span style={{ fontStyle: 'italic' }}>C</span> / Value
+              </div>
+              <div style={{ fontSize: '14px', color: COLORS.textSecondary, marginTop: '12px' }}>
+                Interest Rate = Payment / Price
+              </div>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary }}>
+              That's it! For a consol, imputing the rate is just one division.
+            </p>
+            <DeepDiveLink
+              title="Perpetuities & Consols"
+              href="Tutorial-DeepDive-Perpetuities.html"
+            />
+          </div>
+        );
+      }
+      if (currentStep === 1) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Try It: Imputing from a Consol</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              A consol pays $100 per year forever. You observe it trading in the market for $1,250.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              What interest rate is baked into this price?
+            </p>
+            <CalculationBox
+              prompt="r = $100 ÷ $1,250 = ?"
+              correctAnswer={0.08}
+              hint1="Divide the payment by the price"
+              hint2="100 ÷ 1250 = 0.08 or 8%"
+              onCorrect={() => handleCalculationComplete('consol_impute')}
+              soundEnabled={soundEnabled}
+              isPercent={true}
+              prefix=""
+            />
+            {calculationsComplete['consol_impute'] && (
+              <InsightBox>
+                <strong>8%!</strong> The market is valuing this consol using an 8% interest rate. If rates were 10%, it would trade at $1,000. The higher price ($1,250) means rates have fallen.
+              </InsightBox>
+            )}
+          </div>
+        );
+      }
+      if (currentStep === 2) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Price and Rate Move Inversely</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              This reveals the fundamental inverse relationship:
+            </p>
+            <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '20px', marginTop: '16px', marginBottom: '16px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'monospace' }}>
+                <thead>
+                  <tr>
+                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: `2px solid ${COLORS.border}`, color: COLORS.textSecondary }}>Consol Payment</th>
+                    <th style={{ padding: '12px', textAlign: 'center', borderBottom: `2px solid ${COLORS.border}`, color: COLORS.textSecondary }}>Market Price</th>
+                    <th style={{ padding: '12px', textAlign: 'center', borderBottom: `2px solid ${COLORS.border}`, color: COLORS.textSecondary }}>Implied Rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '12px', borderBottom: `1px solid ${COLORS.border}` }}>$100/year</td>
+                    <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}` }}>$1,000</td>
+                    <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}`, color: COLORS.primary, fontWeight: '600' }}>10%</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '12px', borderBottom: `1px solid ${COLORS.border}` }}>$100/year</td>
+                    <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}` }}>$1,250</td>
+                    <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}`, color: COLORS.success, fontWeight: '600' }}>8%</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '12px' }}>$100/year</td>
+                    <td style={{ padding: '12px', textAlign: 'center' }}>$2,000</td>
+                    <td style={{ padding: '12px', textAlign: 'center', color: COLORS.gold, fontWeight: '600' }}>5%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary }}>
+              Higher price → Lower implied rate. This is why "bond prices fall when interest rates rise" — when new bonds offer higher rates, existing bonds become less attractive.
+            </p>
+          </div>
+        );
+      }
+    }
+
+    // PART: COUPON BONDS
+    if (partId === 'couponBonds') {
+      if (currentStep === 0) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Coupon Bonds: More Complex</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Consols are easy because there's just one type of cash flow (the payment) and it goes on forever. Regular bonds are more complex — they have:
+            </p>
+            <ul style={{ fontSize: '16px', lineHeight: '1.8', color: COLORS.textSecondary, marginLeft: '24px', marginBottom: '16px' }}>
+              <li style={{ marginBottom: '8px' }}>Multiple coupon payments of varying present values</li>
+              <li style={{ marginBottom: '8px' }}>A final face value payment</li>
+              <li style={{ marginBottom: '8px' }}>A finite maturity</li>
+            </ul>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary }}>
+              There's no simple formula like r = C/Price. Instead, we need to find the rate that makes all the present values add up to the observed price.
+            </p>
+          </div>
+        );
+      }
+      if (currentStep === 1) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>The Yield to Maturity</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Consider a bond with:
+            </p>
+            <div style={{ background: COLORS.surfaceAlt, padding: '20px', borderRadius: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+                <div><span style={{ color: COLORS.textMuted }}>Face Value:</span> <strong>$1,000</strong></div>
+                <div><span style={{ color: COLORS.textMuted }}>Coupon Rate:</span> <strong>6%</strong></div>
+                <div><span style={{ color: COLORS.textMuted }}>Coupon Payment:</span> <strong>$60/year</strong></div>
+                <div><span style={{ color: COLORS.textMuted }}>Years to Maturity:</span> <strong>5</strong></div>
+              </div>
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${COLORS.border}` }}>
+                <span style={{ color: COLORS.textMuted }}>Market Price:</span> <strong style={{ color: COLORS.gold }}>$1,100</strong>
+              </div>
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary }}>
+              The bond sells at a <strong>premium</strong> (above $1,000). This tells us the market rate must be <em>lower</em> than 6% — but exactly what rate?
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginTop: '16px' }}>
+              The answer is called the <strong>yield to maturity (YTM)</strong> — the single rate that discounts all cash flows to exactly the market price.
+            </p>
+          </div>
+        );
+      }
+      if (currentStep === 2) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Why Can't We Just Solve It?</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              We need to find r that makes this true:
+            </p>
+            <div style={{ background: COLORS.surfaceAlt, padding: '16px', borderRadius: '8px', fontFamily: 'monospace', fontSize: '14px', marginBottom: '16px', overflow: 'auto' }}>
+              $1,100 = $60/(1+r) + $60/(1+r)² + $60/(1+r)³ + $60/(1+r)⁴ + $1,060/(1+r)⁵
+            </div>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Unlike the consol case, there's no algebraic trick to isolate r. The equation is too complex. Quick check — why can't we just solve for r algebraically?
+            </p>
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <ChoiceButton
+                label="r appears in multiple terms with different exponents"
+                selected={quizAnswers['yield_quiz'] === 'correct'}
+                correct={true}
+                submitted={quizSubmitted['yield_quiz']}
+                onClick={() => handleQuizAnswer('yield_quiz', 'correct')}
+              />
+              <ChoiceButton
+                label="The cash flows are different amounts"
+                selected={quizAnswers['yield_quiz'] === 'wrong1'}
+                correct={false}
+                submitted={quizSubmitted['yield_quiz']}
+                onClick={() => handleQuizAnswer('yield_quiz', 'wrong1')}
+              />
+              <ChoiceButton
+                label="The interest rate is negative"
+                selected={quizAnswers['yield_quiz'] === 'wrong2'}
+                correct={false}
+                submitted={quizSubmitted['yield_quiz']}
+                onClick={() => handleQuizAnswer('yield_quiz', 'wrong2')}
+              />
+            </div>
+            {quizAnswers['yield_quiz'] && !quizSubmitted['yield_quiz'] && (
+              <button onClick={() => handleQuizSubmit('yield_quiz', 'correct')} style={{ marginTop: '16px', padding: '12px 24px', background: COLORS.primary, color: 'white', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>
+                Check Answer
+              </button>
+            )}
+            {quizSubmitted['yield_quiz'] && (
+              <InsightBox>
+                Exactly! We have (1+r), (1+r)², (1+r)³, etc. You can't combine these terms algebraically. We need a different approach — numerical solving.
+              </InsightBox>
+            )}
+          </div>
+        );
+      }
+      if (currentStep === 3) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Iteration: Trial and Error</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Computers solve this by trying different rates until the calculated price matches the observed price:
+            </p>
+            <YieldIterationVisual showSteps={4} />
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginTop: '16px' }}>
+              The yield to maturity is approximately <strong>3.77%</strong>. This is well below the 6% coupon rate — which makes sense, since the bond is selling at a premium.
+            </p>
+            <RabbitHoleButton
+              rabbitHole={RABBIT_HOLES.goalSeek}
+              explored={exploredRabbitHoles.includes('goalSeek')}
+              onClick={() => handleRabbitHoleClick('goalSeek')}
+              soundEnabled={soundEnabled}
+            />
+          </div>
+        );
+      }
+      if (currentStep === 4) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Yield Tells the Truth</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              The yield to maturity is the "true" return you'll earn if you:
+            </p>
+            <ul style={{ fontSize: '16px', lineHeight: '1.8', color: COLORS.textSecondary, marginLeft: '24px', marginBottom: '16px' }}>
+              <li style={{ marginBottom: '8px' }}>Buy the bond at today's price ($1,100)</li>
+              <li style={{ marginBottom: '8px' }}>Hold it until maturity</li>
+              <li style={{ marginBottom: '8px' }}>Reinvest all coupons at the same rate</li>
+            </ul>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Even though the coupon rate is 6%, you're only earning 3.77% because you paid a premium. The coupon rate describes the cash flows; the yield describes your return.
+            </p>
+            <InsightBox icon={<LucideIcon name="Target" size={24} color={COLORS.gold} />}>
+              <strong>Coupon Rate:</strong> Fixed contractual language (never changes)<br/>
+              <strong>Yield:</strong> Your actual expected return at today's price (changes constantly)
+            </InsightBox>
+            <RabbitHoleButton
+              rabbitHole={RABBIT_HOLES.yieldCurve}
+              explored={exploredRabbitHoles.includes('yieldCurve')}
+              onClick={() => handleRabbitHoleClick('yieldCurve')}
+              soundEnabled={soundEnabled}
+            />
+          </div>
+        );
+      }
+    }
+
+    // PART: WHY NOT STOCKS
+    if (partId === 'whyNotStocks') {
+      if (currentStep === 0) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Why Can't We Do This for Stocks?</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              We've seen how to impute interest rates from bond prices. Can we do the same for stocks? A stock has a price. If we knew the future cash flows, couldn't we work backwards to find the discount rate?
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              What's the key difference between bond cash flows and stock cash flows?
+            </p>
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <ChoiceButton
+                label="Bond cash flows are promised; stock dividends are not"
+                selected={quizAnswers['stock_quiz'] === 'correct'}
+                correct={true}
+                submitted={quizSubmitted['stock_quiz']}
+                onClick={() => handleQuizAnswer('stock_quiz', 'correct')}
+              />
+              <ChoiceButton
+                label="Bonds pay more than stocks"
+                selected={quizAnswers['stock_quiz'] === 'wrong1'}
+                correct={false}
+                submitted={quizSubmitted['stock_quiz']}
+                onClick={() => handleQuizAnswer('stock_quiz', 'wrong1')}
+              />
+              <ChoiceButton
+                label="Stocks are more expensive"
+                selected={quizAnswers['stock_quiz'] === 'wrong2'}
+                correct={false}
+                submitted={quizSubmitted['stock_quiz']}
+                onClick={() => handleQuizAnswer('stock_quiz', 'wrong2')}
+              />
+            </div>
+            {quizAnswers['stock_quiz'] && !quizSubmitted['stock_quiz'] && (
+              <button onClick={() => handleQuizSubmit('stock_quiz', 'correct')} style={{ marginTop: '16px', padding: '12px 24px', background: COLORS.primary, color: 'white', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: '500', cursor: 'pointer' }}>
+                Check Answer
+              </button>
+            )}
+            {quizSubmitted['stock_quiz'] && (
+              <InsightBox>
+                <strong>That's the key insight!</strong> Bond payments are contractual promises — the company must pay or face default. Stock dividends are discretionary — the company can cut them at any time.
+              </InsightBox>
+            )}
+          </div>
+        );
+      }
+      if (currentStep === 1) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>The Promise Problem</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Bond imputation works because we know <em>exactly</em> what cash flows to expect:
+            </p>
+            <StockVsBondTable />
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginTop: '16px' }}>
+              With stocks, we'd need to estimate future dividends. But any estimate involves assumptions about growth, profitability, and management decisions — all uncertain.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginTop: '16px' }}>
+              Different assumptions give different "implied" rates. The rate we'd calculate would depend more on our assumptions than on the market price.
+            </p>
+          </div>
+        );
+      }
+      if (currentStep === 2) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>The Equity Premium Puzzle</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Since we can't directly impute stock returns, we have to look at historical data. And that creates puzzles of its own.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Historically, stocks have returned about 7% more per year than bonds. This is called the "equity risk premium." But economists debate whether that premium will continue — and how to think about expected stock returns at all.
+            </p>
+            <InsightBox>
+              For bonds: observe price → impute rate (clean, mathematical)
+              <br/><br/>
+              For stocks: guess dividends + guess rate → estimate value (messy, judgmental)
+              <br/><br/>
+              This is why bond markets are called "fixed income" — the income is fixed, making the math work.
+            </InsightBox>
+            <RabbitHoleButton
+              rabbitHole={RABBIT_HOLES.equityRiskPremium}
+              explored={exploredRabbitHoles.includes('equityRiskPremium')}
+              onClick={() => handleRabbitHoleClick('equityRiskPremium')}
+              soundEnabled={soundEnabled}
+            />
+          </div>
+        );
+      }
+    }
+
+    // PART: SUMMARY
+    if (partId === 'summary') {
+      if (currentStep === 0) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>Interest Rates Are Prices</h2>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Here's the deeper insight from this tutorial: <strong>interest rates are prices</strong>.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              They're not arbitrary numbers set by authorities. They emerge from trading — from the collective decisions of millions of people deciding how much to pay for future cash flows.
+            </p>
+            <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary }}>
+              When we impute rates from bond prices, we're observing the market's answer to the question: "What is time worth?"
+            </p>
+            <InsightBox celebration={false} icon={<LucideIcon name="Scale" size={24} color={COLORS.gold} />}>
+              Just as the price of apples emerges from buyers and sellers meeting in a market, the price of borrowing (the interest rate) emerges from lenders and borrowers meeting in financial markets.
+            </InsightBox>
+          </div>
+        );
+      }
+      if (currentStep === 1) {
+        return (
+          <div>
+            <h2 style={{ fontSize: '24px', color: COLORS.textPrimary, marginBottom: '20px' }}>What You've Learned</h2>
+            <div style={{ background: COLORS.surfaceAlt, borderRadius: '12px', padding: '24px', marginTop: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  <div style={{ background: COLORS.primary, color: 'white', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '600', flexShrink: 0 }}>1</div>
+                  <div>
+                    <div style={{ fontWeight: '600', color: COLORS.textPrimary, marginBottom: '4px' }}>The Flip</div>
+                    <div style={{ fontSize: '14px', color: COLORS.textSecondary }}>Given price and cash flows, find the rate (not the other way around)</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  <div style={{ background: COLORS.primary, color: 'white', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '600', flexShrink: 0 }}>2</div>
+                  <div>
+                    <div style={{ fontWeight: '600', color: COLORS.textPrimary, marginBottom: '4px' }}>Consols: r = C/Price</div>
+                    <div style={{ fontSize: '14px', color: COLORS.textSecondary }}>For perpetual bonds, imputation is one simple division</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  <div style={{ background: COLORS.primary, color: 'white', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '600', flexShrink: 0 }}>3</div>
+                  <div>
+                    <div style={{ fontWeight: '600', color: COLORS.textPrimary, marginBottom: '4px' }}>Yield to Maturity</div>
+                    <div style={{ fontSize: '14px', color: COLORS.textSecondary }}>For coupon bonds, we iterate to find the rate — the YTM</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  <div style={{ background: COLORS.primary, color: 'white', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '600', flexShrink: 0 }}>4</div>
+                  <div>
+                    <div style={{ fontWeight: '600', color: COLORS.textPrimary, marginBottom: '4px' }}>Why Not Stocks?</div>
+                    <div style={{ fontSize: '14px', color: COLORS.textSecondary }}>Stock cash flows aren't promised — we can't cleanly impute rates</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+    }
+
+    // PART: COMPLETE
+    if (partId === 'complete') {
+      if (soundEnabled && currentStep === 0) {
+        setTimeout(() => playSound('celebration'), 300);
+      }
+      return (
+        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+          <div style={{ fontSize: '48px', marginBottom: '20px' }}>🎉</div>
+          <h2 style={{ fontSize: '28px', color: COLORS.textPrimary, marginBottom: '16px' }}>Tutorial D Complete!</h2>
+          <p style={{ fontSize: '16px', color: COLORS.textSecondary, marginBottom: '24px', maxWidth: '500px', margin: '0 auto 24px' }}>
+            You've learned how interest rates emerge from market prices — the foundation for understanding how financial markets work.
+          </p>
+          <InsightBox celebration={true}>
+            <div style={{ textAlign: 'left' }}>
+              <strong>The Big Picture:</strong> Interest rates aren't inputs handed to us — they're outputs discovered through trading. When we watch bond prices, we're watching the market price time itself.
+            </div>
+          </InsightBox>
+          <div style={{ marginTop: '32px' }}>
+            <p style={{ fontSize: '14px', color: COLORS.textSecondary, marginBottom: '16px' }}>
+              Explored {exploredRabbitHoles.length} of {TOTAL_RABBIT_HOLES} rabbit holes
+            </p>
+            <a href="Tutorial-E-RateChanges.html" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '14px 28px', background: COLORS.primary, color: 'white', textDecoration: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: '600' }}>
+              Continue to Tutorial E: Rate Changes
+              <LucideIcon name="ArrowRight" size={20} />
+            </a>
+          </div>
+        </div>
+      );
+    }
+
+    return <div>Content not found</div>;
+  };
+
+  const canGoBack = currentPartIndex > 0 || currentStep > 0;
+  const isComplete = currentPartIndex === PARTS.length - 1;
+
+  return (
+    <div style={{ minHeight: '100vh', background: COLORS.background }}>
+      <Header
+        currentPartIndex={currentPartIndex}
+        currentStep={currentStep}
+        exploredRabbitHoles={exploredRabbitHoles}
+        totalRabbitHoles={TOTAL_RABBIT_HOLES}
+        onGlossaryClick={() => setShowGlossary(true)}
+        onRabbitHoleListClick={() => setShowRabbitHoleList(true)}
+        onRestartClick={handleRestart}
+        onHeaderClick={handleHeaderClick}
+        soundEnabled={soundEnabled}
+        onSoundToggle={() => setSoundEnabled(prev => !prev)}
+      />
+
+      <main style={{ maxWidth: '800px', margin: '0 auto', padding: '32px 24px' }}>
+        <div style={{ background: 'white', borderRadius: '16px', padding: '32px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          {renderContent()}
+          {!isComplete && (
+            <NavButtons
+              onBack={handleBack}
+              onContinue={handleContinue}
+              canGoBack={canGoBack}
+              canContinue={canContinue()}
+              soundEnabled={soundEnabled}
+            />
+          )}
+        </div>
+
+        {/* Dev Mode Panel */}
+        {devMode && (
+          <div style={{ marginTop: '24px', padding: '16px', background: '#fee2e2', borderRadius: '8px', border: '1px solid #fca5a5' }}>
+            <h4 style={{ margin: '0 0 12px 0', color: '#dc2626' }}>Dev Mode</h4>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {PARTS.map((part, index) => (
+                <button key={part.id} onClick={() => { setCurrentPartIndex(index); setCurrentStep(0); }} style={{ padding: '6px 12px', background: currentPartIndex === index ? '#dc2626' : 'white', color: currentPartIndex === index ? 'white' : '#dc2626', border: '1px solid #dc2626', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
+                  {index + 1}. {part.title}
+                </button>
+              ))}
+            </div>
+            <div style={{ marginTop: '12px', fontSize: '12px', color: '#dc2626' }}>
+              Part: {currentPartIndex + 1}, Step: {currentStep + 1}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Modals */}
+      {showGlossary && <GlossaryModal onClose={() => setShowGlossary(false)} />}
+
+      {showRabbitHoleList && (
+        <RabbitHoleListModal
+          exploredRabbitHoles={exploredRabbitHoles}
+          onSelectRabbitHole={handleRabbitHoleFromList}
+          onClose={() => setShowRabbitHoleList(false)}
+        />
+      )}
+
+      {activeRabbitHole && (
+        <Modal
+          title={activeRabbitHole.title}
+          onClose={() => setActiveRabbitHole(null)}
+          headerBg={COLORS.rabbitHole}
+          headerIcon={<LucideIcon name="Rabbit" size={24} />}
+        >
+          <div style={{ fontSize: '15px', lineHeight: '1.7', color: COLORS.textSecondary, whiteSpace: 'pre-line' }}>
+            {activeRabbitHole.content}
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+};
+
+// Render
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
