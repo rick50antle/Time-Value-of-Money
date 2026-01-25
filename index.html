@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Value of Money | ACCT 2700 - Yale SOM</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            min-height: 100vh;
+            color: #1e293b;
+        }
+
+        .header {
+            background: #00356b;
+            color: white;
+            padding: 40px 24px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .header .subtitle {
+            font-size: 18px;
+            opacity: 0.9;
+            margin-bottom: 4px;
+        }
+
+        .header .course {
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+
+        .section-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #00356b;
+            margin-bottom: 24px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .tutorials-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .tutorial-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 1px solid #e2e8f0;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            transition: all 0.2s ease;
+        }
+
+        .tutorial-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            border-color: #00356b;
+        }
+
+        .tutorial-card .number {
+            display: inline-block;
+            background: #00356b;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 32px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-right: 12px;
+        }
+
+        .tutorial-card .title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #00356b;
+            display: inline;
+        }
+
+        .tutorial-card .description {
+            margin-top: 12px;
+            font-size: 15px;
+            color: #64748b;
+            line-height: 1.6;
+        }
+
+        .tutorial-card .meta {
+            margin-top: 16px;
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        .tutorial-card .meta span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .intro-text {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 32px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 1px solid #e2e8f0;
+        }
+
+        .intro-text p {
+            font-size: 16px;
+            line-height: 1.7;
+            color: #475569;
+        }
+
+        .intro-text p + p {
+            margin-top: 12px;
+        }
+
+        .how-to-use {
+            background: #fdf8f0;
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 32px;
+            border: 1px solid #e8dcc8;
+        }
+
+        .how-to-use h2 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #00356b;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .how-to-use-item {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .how-to-use-item:last-of-type {
+            margin-bottom: 0;
+        }
+
+        .how-to-use-number {
+            background: #00356b;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .how-to-use-content {
+            font-size: 15px;
+            line-height: 1.7;
+            color: #475569;
+        }
+
+        .how-to-use-content strong {
+            color: #1e293b;
+        }
+
+        .how-to-use-content em {
+            font-style: italic;
+        }
+
+        .how-to-use-note {
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #e8dcc8;
+            font-size: 14px;
+            color: #64748b;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .created-by {
+            background: #00356b;
+            color: white;
+            padding: 48px 24px;
+            text-align: center;
+        }
+
+        .created-by h2 {
+            font-size: 22px;
+            font-weight: 300;
+            font-style: italic;
+            margin-bottom: 32px;
+            opacity: 0.9;
+        }
+
+        .created-by .author {
+            margin-bottom: 24px;
+        }
+
+        .created-by .author:last-child {
+            margin-bottom: 0;
+        }
+
+        .created-by .author-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .created-by .author-title {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 24px;
+            color: #94a3b8;
+            font-size: 13px;
+        }
+
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .tutorial-card {
+                padding: 20px;
+            }
+
+            .tutorial-card .meta {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .how-to-use {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>Time Value of Money</h1>
+        <div class="subtitle">Module 1: Compound Growth & Discounting</div>
+        <div class="course">ACCT 2700 - Foundations of Accounting & Valuation | Yale School of Management</div>
+    </header>
+
+    <main class="container">
+        <div class="intro-text">
+            <p>
+                Welcome to the Time Value of Money module. These interactive tutorials explore compound growth, discounting, and the conditions under which markets enable objective measurement of value. Under a clean set of assumptions — no uncertainty, no transaction costs, and equal rates for borrowing and lending — we can establish a clear benchmark where everyone agrees on what something is worth. This idealized case is a powerful tool: it sharpens our intuition and anchors our thinking when we move to messier, more realistic settings.
+            </p>
+        </div>
+
+        <div class="how-to-use">
+            <h2>How to Use These Tutorials</h2>
+            <div class="how-to-use-item">
+                <div class="how-to-use-number">1</div>
+                <div class="how-to-use-content">
+                    <strong>Dive right in.</strong> These tutorials are meant to be <em>experienced</em>, not studied. You'll learn by working through puzzles and building intuition about how money moves through time.
+                </div>
+            </div>
+            <div class="how-to-use-item">
+                <div class="how-to-use-number">2</div>
+                <div class="how-to-use-content">
+                    <strong>Stay thoughtful.</strong> When you're asked a question, pause and wrestle with it before moving on. The insights come from the struggle, not from clicking through quickly.
+                </div>
+            </div>
+            <div class="how-to-use-item">
+                <div class="how-to-use-number">3</div>
+                <div class="how-to-use-content">
+                    <strong>Trust the journey.</strong> Follow The Main Flow (A–E) in order — each tutorial builds on what came before. Explore the Deep Dives (★) anytime you want more depth.
+                </div>
+            </div>
+            <div class="how-to-use-note">
+                Each tutorial takes 10–20 minutes. Works on any device.
+            </div>
+        </div>
+
+        <h2 class="section-title">The Main Flow</h2>
+
+        <div class="tutorials-grid">
+            <a href="Tutorial-A-ThePuzzle.html" class="tutorial-card">
+                <span class="number">A</span>
+                <span class="title">The Puzzle</span>
+                <p class="description">
+                    Discover why comparing cash flows at different times is harder than it seems. Without the ability to borrow or lend, value depends on who's measuring.
+                </p>
+                <div class="meta">
+                    <span>15-20 min</span>
+                    <span>4 parts</span>
+                    <span>3 rabbit holes</span>
+                </div>
+            </a>
+
+            <a href="Tutorial-B-TheMachine.html" class="tutorial-card">
+                <span class="number">B</span>
+                <span class="title">The Machine</span>
+                <p class="description">
+                    Learn how borrowing and lending create a "machine" that transforms money through time. Master compounding (walking forward) and discounting (walking backward).
+                </p>
+                <div class="meta">
+                    <span>15-20 min</span>
+                    <span>5 parts</span>
+                    <span>3 rabbit holes</span>
+                </div>
+            </a>
+
+            <a href="Tutorial-C-BondPricing.html" class="tutorial-card">
+                <span class="number">C</span>
+                <span class="title">Bond Pricing</span>
+                <p class="description">
+                    Apply time value concepts to real financial instruments. Learn how bonds work, why prices move opposite to yields, and build a bond pricing spreadsheet.
+                </p>
+                <div class="meta">
+                    <span>20-25 min</span>
+                    <span>8 parts</span>
+                    <span>Interactive calculations</span>
+                </div>
+            </a>
+
+            <a href="Tutorial-D-FindingInterestRates.html" class="tutorial-card">
+                <span class="number">D</span>
+                <span class="title">Finding Interest Rates</span>
+                <p class="description">
+                    Learn to impute interest rates from market prices. Start with consols, then coupon bonds, and understand why this doesn't work for stocks.
+                </p>
+                <div class="meta">
+                    <span>12-18 min</span>
+                    <span>6 parts</span>
+                    <span>4 rabbit holes</span>
+                </div>
+            </a>
+
+            <a href="Tutorial-E-RateChanges.html" class="tutorial-card">
+                <span class="number">E</span>
+                <span class="title">Rate Changes</span>
+                <p class="description">
+                    Explore what happens when interest rates change over time. Understand how rate shifts affect present values and future values.
+                </p>
+                <div class="meta">
+                    <span>10-15 min</span>
+                    <span>Interactive slider</span>
+                    <span>Visual demonstrations</span>
+                </div>
+            </a>
+
+            <a href="Tutorial-F-BeyondBonds.html" class="tutorial-card">
+                <span class="number">F</span>
+                <span class="title">Beyond Bonds — Business Valuation</span>
+                <p class="description">
+                    See how DCF extends beyond bonds to value businesses. Learn about terminal value and why it often dominates business valuations.
+                </p>
+                <div class="meta">
+                    <span>15-20 min</span>
+                    <span>6 parts</span>
+                    <span>3 rabbit holes</span>
+                </div>
+            </a>
+        </div>
+
+        <h2 class="section-title" style="margin-top: 40px;">Deep Dives</h2>
+
+        <div class="tutorials-grid">
+            <a href="Tutorial-DeepDive-NamingPractice.html" class="tutorial-card">
+                <span class="number">★</span>
+                <span class="title">Naming & Practice</span>
+                <p class="description">
+                    Put names to concepts you now understand: present value, future value, discount rate. Practice with annuities and irregular cash flows.
+                </p>
+                <div class="meta">
+                    <span>15-20 min</span>
+                    <span>6 parts</span>
+                    <span>3 rabbit holes</span>
+                </div>
+            </a>
+
+            <a href="Tutorial-DeepDive-CompoundingPeriods.html" class="tutorial-card">
+                <span class="number">★</span>
+                <span class="title">Compounding Periods</span>
+                <p class="description">
+                    Learn how compounding frequency affects growth. Compare annual, quarterly, monthly, and continuous compounding.
+                </p>
+                <div class="meta">
+                    <span>15-20 min</span>
+                    <span>Multiple examples</span>
+                    <span>APR vs EAR</span>
+                </div>
+            </a>
+
+            <a href="Tutorial-DeepDive-TermStructure.html" class="tutorial-card">
+                <span class="number">★</span>
+                <span class="title">Term Structure</span>
+                <p class="description">
+                    Discover why interest rates differ for different time horizons. Understand yield curves and what they tell us about market expectations.
+                </p>
+                <div class="meta">
+                    <span>10-15 min</span>
+                    <span>Yield curves</span>
+                    <span>Forward rates</span>
+                </div>
+            </a>
+
+            <a href="Tutorial-DeepDive-CapitalProjects.html" class="tutorial-card">
+                <span class="number">★</span>
+                <span class="title">Capital Projects and NPV</span>
+                <p class="description">
+                    Apply DCF to capital budgeting decisions. Learn the NPV rule for deciding whether a project creates or destroys value.
+                </p>
+                <div class="meta">
+                    <span>10-15 min</span>
+                    <span>6 parts</span>
+                    <span>2 rabbit holes</span>
+                </div>
+            </a>
+
+            <a href="Tutorial-DeepDive-Pitfalls.html" class="tutorial-card">
+                <span class="number">★</span>
+                <span class="title">Pitfalls & Subtleties</span>
+                <p class="description">
+                    When your intuition betrays you: arithmetic vs. geometric means, percentage asymmetry, APR vs. EAR, nominal vs. real returns, and the Rule of 72.
+                </p>
+                <div class="meta">
+                    <span>15-25 min</span>
+                    <span>8 parts</span>
+                    <span>6 rabbit holes</span>
+                </div>
+            </a>
+
+            <a href="Tutorial-DeepDive-Perpetuities.html" class="tutorial-card">
+                <span class="number">★</span>
+                <span class="title">Perpetuities & Consols</span>
+                <p class="description">
+                    Explore perpetuities — streams that pay forever. Learn the simplest present value formula and see how to impute interest rates from consol prices.
+                </p>
+                <div class="meta">
+                    <span>12-18 min</span>
+                    <span>7 parts</span>
+                    <span>3 rabbit holes</span>
+                </div>
+            </a>
+        </div>
+    </main>
+
+    <footer class="created-by">
+        <h2>Created by</h2>
+        <div class="author">
+            <div class="author-name">Rick Antle</div>
+            <div class="author-title">William S. Beinecke Professor of Accounting</div>
+        </div>
+        <div class="author">
+            <div class="author-name">Stanley J. Garstka</div>
+            <div class="author-title">Professor in the Practice Emeritus of Management</div>
+        </div>
+        <div class="author">
+            <div class="author-name">Claude</div>
+            <div class="author-title">Anthropic</div>
+        </div>
+    </footer>
+
+    <div class="footer">
+        ACCT 2700 - Foundations of Accounting & Valuation | Yale School of Management
+    </div>
+</body>
+</html>
