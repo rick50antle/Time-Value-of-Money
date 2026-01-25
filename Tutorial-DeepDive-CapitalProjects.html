@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deep Dive: Capital Projects and NPV | Time Value of Money</title>
+    <title>Deep Dive: Capital Projects & NPV | Time Value of Money</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -35,34 +35,10 @@ const LucideIcon = ({ name, size = 24, color = 'currentColor', style = {} }) => 
 };
 
 
-// Icons:  
-  ChevronLeft, 
-  ChevronRight, 
-  Rabbit, 
-  BookOpen, 
-  RotateCcw, 
-  Check, 
-  X, 
-  Volume2,
-  VolumeX,
-  TrendingUp,
-  DollarSign,
-  Building2,
-  Coffee,
-  Calculator,
-  ArrowRight,
-  ArrowDown,
-  HelpCircle,
-  Lightbulb,
-  Target,
-  Factory,
-  CircleDollarSign,
-  FileText,
-  CheckCircle,
-  XCircle,
-  MinusCircle,
-  Award
-
+// Icons used: ChevronLeft, ChevronRight, Rabbit, BookOpen, RotateCcw, Check, X,
+// Volume2, VolumeX, TrendingUp, DollarSign, Building2, Coffee, Calculator,
+// ArrowRight, ArrowDown, HelpCircle, Lightbulb, Target, Factory, CircleDollarSign,
+// FileText, CheckCircle, XCircle, MinusCircle, Award
 
 // ============================================================================
 // CONSTANTS
@@ -1176,64 +1152,18 @@ const RestartConfirmModal = ({ onConfirm, onCancel }) => (
   </div>
 );
 
-// --- Dev Mode Panel ---
+// DevModePanel Component
 const DevModePanel = ({ onJumpToPart, currentPartIndex, onClose }) => (
-  <div style={{
-    position: 'fixed',
-    bottom: '20px',
-    right: '20px',
-    background: 'white',
-    border: `2px solid ${COLORS.warning}`,
-    borderRadius: '12px',
-    padding: '16px',
-    boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
-    zIndex: 999,
-    maxHeight: '400px',
-    overflow: 'auto',
-  }}>
-    <div style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '12px',
-    }}>
-      <h3 style={{ 
-        margin: 0, 
-        fontSize: '14px', 
-        color: COLORS.warning,
-        fontWeight: '600',
-      }}>
-        🛠 Dev Mode
-      </h3>
-      <button
-        onClick={onClose}
-        style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          color: COLORS.textMuted,
-        }}
-      >
+  <div style={{ position: 'fixed', bottom: '20px', right: '20px', background: 'white', border: `2px solid ${COLORS.warning}`, borderRadius: '12px', padding: '16px', boxShadow: '0 10px 40px rgba(0,0,0,0.15)', zIndex: 999, maxHeight: '400px', overflow: 'auto' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+      <h3 style={{ margin: 0, fontSize: '14px', color: COLORS.warning, fontWeight: '600' }}>Dev Mode</h3>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.textMuted, padding: '4px' }}>
         <LucideIcon name="X" size={18} />
       </button>
     </div>
-    
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
       {PARTS.map((part, index) => (
-        <button
-          key={part.id}
-          onClick={() => onJumpToPart(index)}
-          style={{
-            padding: '8px 12px',
-            border: `1px solid ${index === currentPartIndex ? COLORS.warning : COLORS.border}`,
-            borderRadius: '6px',
-            background: index === currentPartIndex ? COLORS.warningBg : 'white',
-            color: COLORS.textPrimary,
-            fontSize: '13px',
-            textAlign: 'left',
-            cursor: 'pointer',
-          }}
-        >
+        <button key={part.id} onClick={() => onJumpToPart(index)} style={{ padding: '8px 12px', border: `1px solid ${index === currentPartIndex ? COLORS.warning : COLORS.border}`, borderRadius: '6px', background: index === currentPartIndex ? COLORS.warningBg : 'white', color: COLORS.textPrimary, fontSize: '13px', textAlign: 'left', cursor: 'pointer' }}>
           {index + 1}. {part.title}
         </button>
       ))}
@@ -2806,27 +2736,26 @@ const Tutorial02I = () => {
         {renderCurrentPart()}
       </main>
 
-      {/* Tutorial Navigation Footer */}
+      {/* Navigation Footer */}
       <div style={{
-        background: '#00356b',
+        background: COLORS.primary,
         padding: '24px',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: '16px',
         marginTop: '40px',
       }}>
         <a href="index.html" style={{
-          padding: '12px 24px',
+          padding: '12px 32px',
           background: '#b8860b',
           borderRadius: '8px',
           color: 'white',
           textDecoration: 'none',
           textAlign: 'center',
-          minWidth: '140px',
           fontWeight: '500',
+          fontSize: '15px',
         }}>
-          Hub
+          ← Back to Hub
         </a>
       </div>
 
@@ -2856,13 +2785,7 @@ const Tutorial02I = () => {
       )}
       
       {/* Dev Mode Panel */}
-      {devMode && (
-        <DevModePanel
-          onJumpToPart={handleJumpToPart}
-          currentPartIndex={currentPartIndex}
-          onClose={() => setDevMode(false)}
-        />
-      )}
+      {devMode && <DevModePanel onJumpToPart={(i) => { setCurrentPartIndex(i); setCurrentStep(0); }} currentPartIndex={currentPartIndex} onClose={() => setDevMode(false)} />}
     </div>
   );
 };

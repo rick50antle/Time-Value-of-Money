@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>When Rates Change - Tutorial E</title>
+  <title>When Rates Change | Time Value of Money</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -41,39 +41,20 @@
   <script type="text/babel">
     const { useState, useCallback, useEffect, useRef } = React;
 
-    // LucideIcon helper component
+    // LucideIcon wrapper
     const LucideIcon = ({ name, size = 24, color = 'currentColor', style = {} }) => {
       const iconRef = useRef(null);
-
       useEffect(() => {
-        if (iconRef.current && lucide && lucide[name]) {
+        if (iconRef.current && lucide[name]) {
           iconRef.current.innerHTML = '';
-          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          const svg = lucide.createElement(lucide[name]);
           svg.setAttribute('width', size);
           svg.setAttribute('height', size);
-          svg.setAttribute('viewBox', '0 0 24 24');
-          svg.setAttribute('fill', 'none');
           svg.setAttribute('stroke', color);
-          svg.setAttribute('stroke-width', '2');
-          svg.setAttribute('stroke-linecap', 'round');
-          svg.setAttribute('stroke-linejoin', 'round');
-
-          const iconData = lucide[name];
-          if (iconData && iconData[2]) {
-            iconData[2].forEach(pathData => {
-              const element = document.createElementNS('http://www.w3.org/2000/svg', pathData[0]);
-              const attrs = pathData[1];
-              Object.keys(attrs).forEach(attr => {
-                element.setAttribute(attr, attrs[attr]);
-              });
-              svg.appendChild(element);
-            });
-          }
           iconRef.current.appendChild(svg);
         }
       }, [name, size, color]);
-
-      return <span ref={iconRef} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', ...style }} />;
+      return <span ref={iconRef} style={{ display: 'inline-flex', alignItems: 'center', ...style }} />;
     };
 
     // Constants

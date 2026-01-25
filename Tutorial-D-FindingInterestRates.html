@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tutorial D: Finding Interest Rates | Time Value of Money</title>
+    <title>Finding Interest Rates | Time Value of Money</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -649,6 +649,25 @@ const GlossaryModal = ({ onClose }) => (
       ))}
     </div>
   </Modal>
+);
+
+// DevModePanel Component
+const DevModePanel = ({ onJumpToPart, currentPartIndex, onClose }) => (
+  <div style={{ position: 'fixed', bottom: '20px', right: '20px', background: 'white', border: `2px solid ${COLORS.warning}`, borderRadius: '12px', padding: '16px', boxShadow: '0 10px 40px rgba(0,0,0,0.15)', zIndex: 999, maxHeight: '400px', overflow: 'auto' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+      <h3 style={{ margin: 0, fontSize: '14px', color: COLORS.warning, fontWeight: '600' }}>Dev Mode</h3>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.textMuted, padding: '4px' }}>
+        <LucideIcon name="X" size={18} />
+      </button>
+    </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {PARTS.map((part, index) => (
+        <button key={part.id} onClick={() => onJumpToPart(index)} style={{ padding: '8px 12px', border: `1px solid ${index === currentPartIndex ? COLORS.warning : COLORS.border}`, borderRadius: '6px', background: index === currentPartIndex ? COLORS.warningBg : 'white', color: COLORS.textPrimary, fontSize: '13px', textAlign: 'left', cursor: 'pointer' }}>
+          {index + 1}. {part.title}
+        </button>
+      ))}
+    </div>
+  </div>
 );
 
 // Main App Component
@@ -1304,23 +1323,56 @@ const App = () => {
           )}
         </div>
 
-        {/* Dev Mode Panel */}
-        {devMode && (
-          <div style={{ marginTop: '24px', padding: '16px', background: '#fee2e2', borderRadius: '8px', border: '1px solid #fca5a5' }}>
-            <h4 style={{ margin: '0 0 12px 0', color: '#dc2626' }}>Dev Mode</h4>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {PARTS.map((part, index) => (
-                <button key={part.id} onClick={() => { setCurrentPartIndex(index); setCurrentStep(0); }} style={{ padding: '6px 12px', background: currentPartIndex === index ? '#dc2626' : 'white', color: currentPartIndex === index ? 'white' : '#dc2626', border: '1px solid #dc2626', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>
-                  {index + 1}. {part.title}
-                </button>
-              ))}
-            </div>
-            <div style={{ marginTop: '12px', fontSize: '12px', color: '#dc2626' }}>
-              Part: {currentPartIndex + 1}, Step: {currentStep + 1}
-            </div>
-          </div>
-        )}
       </main>
+
+      {/* Tutorial Navigation Footer */}
+      <div style={{
+        background: '#00356b',
+        padding: '24px',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: '16px',
+        marginTop: '40px',
+        flexWrap: 'wrap',
+      }}>
+        <a href="Tutorial-C-BondPricing.html" style={{
+          padding: '12px 24px',
+          background: 'rgba(255,255,255,0.15)',
+          borderRadius: '8px',
+          color: 'white',
+          textDecoration: 'none',
+          textAlign: 'center',
+          minWidth: '140px',
+        }}>
+          <div style={{ fontSize: '14px', fontWeight: '500' }}>← Previous</div>
+          <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px' }}>Bond Pricing</div>
+        </a>
+        <a href="index.html" style={{
+          padding: '12px 24px',
+          background: '#b8860b',
+          borderRadius: '8px',
+          color: 'white',
+          textDecoration: 'none',
+          textAlign: 'center',
+          minWidth: '140px',
+          fontWeight: '500',
+        }}>
+          Hub
+        </a>
+        <a href="Tutorial-E-RateChanges.html" style={{
+          padding: '12px 24px',
+          background: 'rgba(255,255,255,0.15)',
+          borderRadius: '8px',
+          color: 'white',
+          textDecoration: 'none',
+          textAlign: 'center',
+          minWidth: '140px',
+        }}>
+          <div style={{ fontSize: '14px', fontWeight: '500' }}>Next →</div>
+          <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '4px' }}>When Rates Change</div>
+        </a>
+      </div>
 
       {/* Modals */}
       {showGlossary && <GlossaryModal onClose={() => setShowGlossary(false)} />}
@@ -1345,6 +1397,8 @@ const App = () => {
           </div>
         </Modal>
       )}
+
+      {devMode && <DevModePanel onJumpToPart={(i) => { setCurrentPartIndex(i); setCurrentStep(0); }} currentPartIndex={currentPartIndex} onClose={() => setDevMode(false)} />}
     </div>
   );
 };
