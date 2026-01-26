@@ -237,7 +237,7 @@ const calculateProgress = (partIndex, step) => {
 const Header = ({ currentPartIndex, currentStep, exploredRabbitHoles, onGlossaryClick, onRabbitHoleListClick, onRestartClick, onHeaderClick, soundEnabled, onSoundToggle }) => {
   const progress = calculateProgress(currentPartIndex, currentStep);
   return (
-    <header style={{ background: COLORS.deepDive, color: 'white', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 100 }}>
+    <header style={{ background: COLORS.primary, color: 'white', padding: '16px 24px', position: 'sticky', top: 0, zIndex: 100 }}>
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
           <h1 onClick={onHeaderClick} style={{ fontSize: '18px', fontWeight: '600', margin: 0, cursor: 'default', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -284,7 +284,7 @@ const NavButtons = ({ onBack, onContinue, canGoBack, canContinue, continueLabel 
         <LucideIcon name="ChevronLeft" size={18} />
         Back
       </button>
-      <button onClick={handleContinue} disabled={!canContinue} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 24px', border: 'none', borderRadius: '8px', background: canContinue ? COLORS.deepDive : COLORS.textMuted, color: 'white', cursor: canContinue ? 'pointer' : 'not-allowed', fontSize: '15px', fontWeight: '500' }}>
+      <button onClick={handleContinue} disabled={!canContinue} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 24px', border: 'none', borderRadius: '8px', background: canContinue ? COLORS.primary : COLORS.textMuted, color: 'white', cursor: canContinue ? 'pointer' : 'not-allowed', fontSize: '15px', fontWeight: '500' }}>
         {continueLabel}
         <LucideIcon name="ChevronRight" size={18} />
       </button>
@@ -349,7 +349,7 @@ const CalculationBox = ({ prompt, correctAnswer, hint1, hint2, onCorrect, soundE
           {prefix && <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: COLORS.textMuted }}>{prefix}</span>}
           <input type="text" value={input} onChange={(e) => setInput(e.target.value)} disabled={isCorrect || disabled} placeholder={isPercent ? '0.0' : '0.00'} style={{ width: '100%', padding: prefix ? '12px 12px 12px 28px' : '12px', border: `2px solid ${isCorrect ? COLORS.successBorder : COLORS.border}`, borderRadius: '8px', fontSize: '16px', fontFamily: 'monospace', background: isCorrect ? COLORS.successBg : 'white', boxSizing: 'border-box' }} onKeyDown={(e) => e.key === 'Enter' && !isCorrect && handleCheck()} />
         </div>
-        <button onClick={handleCheck} disabled={isCorrect || !input || disabled} style={{ padding: '12px 20px', border: 'none', borderRadius: '8px', background: isCorrect ? COLORS.success : COLORS.deepDive, color: 'white', fontSize: '15px', fontWeight: '500', cursor: isCorrect || !input || disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+        <button onClick={handleCheck} disabled={isCorrect || !input || disabled} style={{ padding: '12px 20px', border: 'none', borderRadius: '8px', background: isCorrect ? COLORS.success : COLORS.primary, color: 'white', fontSize: '15px', fontWeight: '500', cursor: isCorrect || !input || disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           {isCorrect ? <LucideIcon name="Check" size={18} /> : 'Check'}
         </button>
       </div>
@@ -396,15 +396,15 @@ const PerpetuityDiagram = ({ payment = 100, rate = 0.10, showPVs = false }) => {
               {!isEllipsis && (
                 <>
                   <div style={{
-                    background: isInfinity ? COLORS.deepDiveLight : 'white',
-                    border: `2px solid ${isInfinity ? COLORS.deepDiveBorder : COLORS.border}`,
+                    background: isInfinity ? COLORS.primaryLight : 'white',
+                    border: `2px solid ${isInfinity ? COLORS.primaryBorder : COLORS.border}`,
                     borderRadius: '8px',
                     padding: '8px 12px',
                     marginBottom: '8px',
                     minWidth: '65px',
                     textAlign: 'center'
                   }}>
-                    <div style={{ fontFamily: 'monospace', fontSize: '14px', fontWeight: '600', color: isInfinity ? COLORS.deepDive : COLORS.textPrimary }}>
+                    <div style={{ fontFamily: 'monospace', fontSize: '14px', fontWeight: '600', color: isInfinity ? COLORS.primary : COLORS.textPrimary }}>
                       {isInfinity ? `$${payment}` : formatCurrency(payment)}
                     </div>
                   </div>
@@ -413,7 +413,7 @@ const PerpetuityDiagram = ({ payment = 100, rate = 0.10, showPVs = false }) => {
                       PV: {formatCurrency(pv)}
                     </div>
                   )}
-                  <div style={{ width: '2px', height: '15px', background: isInfinity ? COLORS.deepDiveBorder : COLORS.borderDark }} />
+                  <div style={{ width: '2px', height: '15px', background: isInfinity ? COLORS.primaryBorder : COLORS.borderDark }} />
                 </>
               )}
               {isEllipsis && (
@@ -423,7 +423,7 @@ const PerpetuityDiagram = ({ payment = 100, rate = 0.10, showPVs = false }) => {
                 width: isEllipsis ? '0' : '14px',
                 height: isEllipsis ? '0' : '14px',
                 borderRadius: '50%',
-                background: isInfinity ? COLORS.deepDive : COLORS.textSecondary,
+                background: isInfinity ? COLORS.primary : COLORS.textSecondary,
                 position: 'absolute',
                 bottom: '18px'
               }} />
@@ -449,7 +449,7 @@ const InterestOnlyLoanVisual = () => (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '24px', flexWrap: 'wrap' }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: '14px', color: COLORS.textSecondary, marginBottom: '8px' }}>You borrow</div>
-        <div style={{ fontSize: '32px', fontWeight: '700', color: COLORS.deepDive, fontFamily: 'monospace' }}>$1,000</div>
+        <div style={{ fontSize: '32px', fontWeight: '700', color: COLORS.primary, fontFamily: 'monospace' }}>$1,000</div>
         <div style={{ fontSize: '13px', color: COLORS.textMuted, marginTop: '4px' }}>at 10% interest</div>
       </div>
       <div style={{ fontSize: '32px', color: COLORS.textMuted }}>→</div>
@@ -474,7 +474,7 @@ const InterestOnlyLoanVisual = () => (
 const FormulaDisplay = ({ showRate = false }) => (
   <div style={{
     background: 'white',
-    border: `2px solid ${COLORS.deepDiveBorder}`,
+    border: `2px solid ${COLORS.primaryBorder}`,
     borderRadius: '12px',
     padding: '24px',
     marginTop: '16px',
@@ -485,7 +485,7 @@ const FormulaDisplay = ({ showRate = false }) => (
       Value = <span style={{ fontStyle: 'italic' }}>C</span> / <span style={{ fontStyle: 'italic' }}>r</span>
     </div>
     {showRate && (
-      <div style={{ fontSize: '24px', fontFamily: 'Georgia, serif', color: COLORS.deepDive, marginBottom: '16px' }}>
+      <div style={{ fontSize: '24px', fontFamily: 'Georgia, serif', color: COLORS.primary, marginBottom: '16px' }}>
         <span style={{ fontStyle: 'italic' }}>r</span> = <span style={{ fontStyle: 'italic' }}>C</span> / Value
       </div>
     )}
@@ -521,7 +521,7 @@ const GrowingPVTable = () => {
           {data.map((row, i) => (
             <tr key={i}>
               <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}`, fontFamily: 'monospace' }}>{row.year}</td>
-              <td style={{ padding: '10px 12px', textAlign: 'right', borderBottom: `1px solid ${COLORS.border}`, fontFamily: 'monospace', color: COLORS.deepDive }}>{formatCurrency(row.payment)}</td>
+              <td style={{ padding: '10px 12px', textAlign: 'right', borderBottom: `1px solid ${COLORS.border}`, fontFamily: 'monospace', color: COLORS.primary }}>{formatCurrency(row.payment)}</td>
               <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}`, fontFamily: 'monospace', color: COLORS.textMuted }}>{row.factor}</td>
               <td style={{ padding: '10px 12px', textAlign: 'right', borderBottom: `1px solid ${COLORS.border}`, fontFamily: 'monospace' }}>{formatCurrency(row.pv)}</td>
             </tr>
@@ -551,7 +551,7 @@ const PerpetuityCalculator = ({ soundEnabled }) => {
   return (
     <div style={{ background: COLORS.surfaceAlt, border: `1px solid ${COLORS.border}`, borderRadius: '12px', padding: '20px', marginTop: '16px' }}>
       <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', color: COLORS.textPrimary, display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <LucideIcon name="Calculator" size={18} color={COLORS.deepDive} />
+        <LucideIcon name="Calculator" size={18} color={COLORS.primary} />
         Try Different Values
       </h4>
       <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
@@ -570,9 +570,9 @@ const PerpetuityCalculator = ({ soundEnabled }) => {
           </div>
         </div>
       </div>
-      <div style={{ background: 'white', border: `2px solid ${COLORS.deepDiveBorder}`, borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
+      <div style={{ background: 'white', border: `2px solid ${COLORS.primaryBorder}`, borderRadius: '8px', padding: '16px', textAlign: 'center' }}>
         <div style={{ fontSize: '14px', color: COLORS.textSecondary, marginBottom: '4px' }}>Present Value</div>
-        <div style={{ fontSize: '28px', fontWeight: '700', color: COLORS.deepDive, fontFamily: 'monospace' }}>
+        <div style={{ fontSize: '28px', fontWeight: '700', color: COLORS.primary, fontFamily: 'monospace' }}>
           {rateNum > 0 ? formatCurrency(value) : '—'}
         </div>
         <div style={{ fontSize: '13px', color: COLORS.textMuted, marginTop: '8px', fontFamily: 'monospace' }}>
@@ -596,7 +596,7 @@ const RabbitHoleButton = ({ rabbitHole, explored, onClick, soundEnabled }) => {
 };
 
 // Modal Component
-const Modal = ({ children, onClose, title, headerBg = COLORS.deepDive, headerIcon }) => (
+const Modal = ({ children, onClose, title, headerBg = COLORS.primary, headerIcon }) => (
   <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 1000 }} onClick={onClose}>
     <div style={{ background: 'white', borderRadius: '16px', maxWidth: '600px', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '100%' }} onClick={(e) => e.stopPropagation()}>
       <div style={{ background: headerBg, color: 'white', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -876,7 +876,7 @@ const App = () => {
               <div style={{ fontFamily: 'monospace', fontSize: '18px', color: COLORS.textPrimary, lineHeight: '2', textAlign: 'center' }}>
                 <div>Payment = Principal × Rate</div>
                 <div style={{ marginTop: '8px' }}>$100 = Principal × 10%</div>
-                <div style={{ marginTop: '8px', color: COLORS.deepDive, fontWeight: '600' }}>Principal = $100 ÷ 10% = $1,000</div>
+                <div style={{ marginTop: '8px', color: COLORS.primary, fontWeight: '600' }}>Principal = $100 ÷ 10% = $1,000</div>
               </div>
             </div>
             <InsightBox icon={<LucideIcon name="Lightbulb" size={24} color={COLORS.gold} />}>
@@ -897,7 +897,7 @@ const App = () => {
                 <div>C = V × r</div>
                 <div style={{ marginTop: '12px', fontSize: '14px', color: COLORS.textSecondary }}>(the payment equals the value times the rate)</div>
                 <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: `1px solid ${COLORS.border}` }}>Rearranging:</div>
-                <div style={{ marginTop: '8px', color: COLORS.deepDive, fontWeight: '600', fontSize: '24px' }}>V = C / r</div>
+                <div style={{ marginTop: '8px', color: COLORS.primary, fontWeight: '600', fontSize: '24px' }}>V = C / r</div>
               </div>
             </div>
             <p style={{ fontSize: '16px', lineHeight: '1.7', color: COLORS.textSecondary }}>
@@ -1017,15 +1017,15 @@ const App = () => {
                 <tbody>
                   <tr>
                     <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}` }}>10%</td>
-                    <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}`, color: COLORS.deepDive, fontWeight: '600' }}>£1,000</td>
+                    <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}`, color: COLORS.primary, fontWeight: '600' }}>£1,000</td>
                   </tr>
                   <tr>
                     <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}` }}>8%</td>
-                    <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}`, color: COLORS.deepDive, fontWeight: '600' }}>£1,250</td>
+                    <td style={{ padding: '12px', textAlign: 'center', borderBottom: `1px solid ${COLORS.border}`, color: COLORS.primary, fontWeight: '600' }}>£1,250</td>
                   </tr>
                   <tr>
                     <td style={{ padding: '12px', textAlign: 'center' }}>5%</td>
-                    <td style={{ padding: '12px', textAlign: 'center', color: COLORS.deepDive, fontWeight: '600' }}>£2,000</td>
+                    <td style={{ padding: '12px', textAlign: 'center', color: COLORS.primary, fontWeight: '600' }}>£2,000</td>
                   </tr>
                 </tbody>
               </table>
@@ -1152,7 +1152,7 @@ const App = () => {
             </p>
             <div style={{
               background: 'white',
-              border: `2px solid ${COLORS.deepDiveBorder}`,
+              border: `2px solid ${COLORS.primaryBorder}`,
               borderRadius: '12px',
               padding: '24px',
               marginTop: '16px',
@@ -1203,7 +1203,7 @@ const App = () => {
             </p>
             <div style={{
               background: 'white',
-              border: `2px solid ${COLORS.deepDiveBorder}`,
+              border: `2px solid ${COLORS.primaryBorder}`,
               borderRadius: '12px',
               padding: '24px',
               marginTop: '16px',
@@ -1255,7 +1255,7 @@ const App = () => {
             <p style={{ fontSize: '14px', color: COLORS.textSecondary, marginBottom: '16px' }}>
               Explored {exploredRabbitHoles.length} of {Object.keys(RABBIT_HOLES).length} rabbit holes
             </p>
-            <a href="Tutorial-D-FindingInterestRates.html" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '14px 28px', background: COLORS.deepDive, color: 'white', textDecoration: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: '600' }}>
+            <a href="Tutorial-D-FindingInterestRates.html" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '14px 28px', background: COLORS.primary, color: 'white', textDecoration: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: '600' }}>
               Return to Main Tutorial
               <LucideIcon name="ArrowRight" size={20} />
             </a>
