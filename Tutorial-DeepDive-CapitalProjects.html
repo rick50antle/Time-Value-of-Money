@@ -407,7 +407,7 @@ const Header = ({
               userSelect: 'none',
             }}
           >
-            Capital Projects and NPV
+            Capital Projects & NPV
           </h1>
           
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1333,7 +1333,7 @@ const ProjectCashFlowDiagram = ({ showPVResult = false, pvResult = null }) => {
 // RECAP CARD COMPONENT
 // ============================================================================
 
-const RecapCard = ({ icon: Icon, title, value, color, colorLight }) => (
+const RecapCard = ({ icon, title, value, color, colorLight }) => (
   <div style={{
     background: colorLight,
     border: `2px solid ${color}`,
@@ -1352,7 +1352,7 @@ const RecapCard = ({ icon: Icon, title, value, color, colorLight }) => (
       alignItems: 'center',
       justifyContent: 'center',
     }}>
-      <Icon size={28} color={color} />
+      <LucideIcon name={icon} size={28} color={color} />
     </div>
     <div>
       <div style={{ 
@@ -1482,7 +1482,7 @@ const NPVDecisionBox = () => (
 const ThreeAssetComparison = () => {
   const assets = [
     {
-      icon: FileText,
+      icon: 'FileText',
       title: 'Bond',
       color: COLORS.bondColor,
       colorLight: COLORS.bondColorLight,
@@ -1496,7 +1496,7 @@ const ThreeAssetComparison = () => {
       ],
     },
     {
-      icon: Coffee,
+      icon: 'Coffee',
       title: 'Business',
       color: COLORS.businessColor,
       colorLight: COLORS.businessColorLight,
@@ -1510,7 +1510,7 @@ const ThreeAssetComparison = () => {
       ],
     },
     {
-      icon: Factory,
+      icon: 'Factory',
       title: 'Project',
       color: COLORS.projectColor,
       colorLight: COLORS.projectColorLight,
@@ -1532,9 +1532,7 @@ const ThreeAssetComparison = () => {
       gap: '16px',
       marginTop: '20px',
     }}>
-      {assets.map((asset) => {
-        const Icon = asset.icon;
-        return (
+      {assets.map((asset) => (
           <div key={asset.title} style={{
             background: asset.colorLight,
             border: `2px solid ${asset.color}`,
@@ -1555,7 +1553,7 @@ const ThreeAssetComparison = () => {
                 padding: '8px',
                 display: 'flex',
               }}>
-                <Icon size={24} color="white" />
+                <LucideIcon name={asset.icon} size={24} color="white" />
               </div>
               <h3 style={{ 
                 margin: 0, 
@@ -1594,8 +1592,7 @@ const ThreeAssetComparison = () => {
               ))}
             </div>
           </div>
-        );
-      })}
+      ))}
     </div>
   );
 };
